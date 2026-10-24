@@ -1,0 +1,484 @@
+/* ==========================================================================
+   Look & motion: background designs, animations and finishing polish.
+   Brand: Night Ink / Navy surfaces, Road Amber lane markings, Cloud pages.
+   Every animation is switched off for people who prefer reduced motion.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- Page background
+   A faint street-map pattern behind light pages (roads in Navy at very low
+   opacity, with an amber lane line). */
+body {
+  background-color: var(--cloud);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Cg fill='none' stroke='%230A2244' stroke-opacity='.045' stroke-linecap='round'%3E%3Cpath stroke-width='14' d='M-20 250C80 230 120 150 210 140s130-60 170-120'/%3E%3Cpath stroke-width='8' d='M60 -20c10 90 60 140 40 230s20 120 60 170'/%3E%3Cpath stroke-width='6' d='M-20 70h120l60 40h220'/%3E%3Cpath stroke-width='5' d='M250 380c-10-60 30-110 10-170'/%3E%3C/g%3E%3Cpath d='M-20 250C80 230 120 150 210 140s130-60 170-120' fill='none' stroke='%23FAAE0B' stroke-opacity='.18' stroke-width='1.6' stroke-dasharray='10 12' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 360px 360px;
+}
+
+/* ---------------------------------------------------------------- Animated backdrop
+   (dark hero sections, the sign-in brand panel) */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.backdrop__glow {
+  position: absolute;
+  border-radius: 50%;
+  /* soft edges come from the gradient itself; a blur filter would be
+     redrawn every frame and is costly on phones */
+  opacity: 0.6;
+}
+.backdrop__glow--amber {
+  width: 46vmax;
+  height: 46vmax;
+  right: -14vmax;
+  top: -18vmax;
+  background: radial-gradient(circle, rgba(250, 174, 11, 0.32) 0%, rgba(250, 174, 11, 0.12) 35%, transparent 68%);
+}
+.backdrop__glow--navy {
+  width: 52vmax;
+  height: 52vmax;
+  left: -20vmax;
+  bottom: -26vmax;
+  background: radial-gradient(circle, rgba(43, 79, 138, 0.6) 0%, rgba(43, 79, 138, 0.22) 38%, transparent 68%);
+}
+.backdrop__roads {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  /* the whole road layer drifts slowly: GPU-composited, no per-frame redraw */
+  will-change: transform;
+  animation: roads-drift 26s ease-in-out infinite alternate;
+}
+@keyframes roads-drift {
+  from {
+    transform: translate3d(-2%, 1%, 0) rotate(-0.6deg);
+  }
+  to {
+    transform: translate3d(2%, -1.5%, 0) rotate(0.6deg);
+  }
+}
+.backdrop__road {
+  fill: none;
+  stroke: rgba(245, 247, 250, 0.06);
+  stroke-width: 34;
+  stroke-linecap: round;
+}
+.backdrop__road--thin {
+  stroke-width: 18;
+  stroke: rgba(245, 247, 250, 0.045);
+}
+.backdrop__lane {
+  fill: none;
+  stroke: var(--amber);
+  stroke-opacity: 0.55;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 18 22;
+}
+.backdrop__lane--slow {
+  stroke-opacity: 0.3;
+  stroke-width: 1.6;
+  stroke-dasharray: 12 18;
+}
+.backdrop__bubble {
+  position: absolute;
+  margin-left: -22px;
+  will-change: transform;
+  opacity: 0.85;
+  transform-origin: 50% 100%;
+  animation: bubble-float 6s ease-in-out infinite;
+}
+@media (max-width: 899px) {
+  .backdrop__bubble {
+    display: none;
+  }
+}
+@keyframes bubble-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(2deg);
+  }
+}
+
+/* ---------------------------------------------------------------- Landing hero */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #061429 0%, #0a2244 58%, #0d2a55 100%);
+  border-bottom: 0;
+  color: #c9d3e2;
+}
+.hero__inner {
+  position: relative;
+  z-index: 1;
+}
+.hero__title {
+  color: var(--white);
+  animation: rise-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.hero__title::after {
+  content: '';
+  display: block;
+  width: 96px;
+  height: 6px;
+  margin-top: var(--s4);
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, var(--amber) 0 24px, transparent 24px 36px);
+  background-size: 36px 6px;
+  animation: lane-slide 1.4s linear infinite;
+}
+@keyframes lane-slide {
+  to {
+    background-position: 36px 0;
+  }
+}
+.hero__lead {
+  color: #c9d3e2;
+  animation: rise-in 0.7s 0.12s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.hero__copy .cluster {
+  animation: rise-in 0.7s 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.hero__stats {
+  color: #9fb0c8;
+  border-top-color: rgba(245, 247, 250, 0.12);
+  animation: rise-in 0.7s 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.hero__stats .numeral {
+  color: var(--amber);
+  font-size: var(--fs-xl);
+}
+.hero .btn--secondary {
+  background: rgba(245, 247, 250, 0.06);
+  color: var(--white);
+  border-color: rgba(245, 247, 250, 0.3);
+}
+.hero .btn--secondary:hover:not(:disabled) {
+  background: rgba(245, 247, 250, 0.14);
+  border-color: var(--amber-300);
+}
+.hero__map {
+  background: rgba(6, 20, 41, 0.92);
+  border: 1px solid rgba(245, 247, 250, 0.12);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(250, 174, 11, 0.08);
+}
+.hero__map::before {
+  animation: lane-scroll 1.6s linear infinite;
+}
+@keyframes lane-scroll {
+  to {
+    background-position: 0 58px;
+  }
+}
+
+/* "One sign-in" band shares the animated backdrop */
+.roles {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(200deg, #061429 0%, #0a2244 100%);
+}
+.roles > .container {
+  position: relative;
+  z-index: 1;
+}
+.role-card {
+  background: rgba(15, 33, 61, 0.9);
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.role-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(250, 174, 11, 0.55);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+.role-card__icon {
+  transition: transform 0.3s ease;
+}
+.role-card:hover .role-card__icon {
+  transform: rotate(-6deg) scale(1.08);
+}
+
+/* Journey road: lane markings move along the road */
+@media (min-width: 860px) {
+  .journey__road::after {
+    background-size: 30px 2px;
+    animation: lane-slide-30 1.2s linear infinite;
+  }
+}
+@keyframes lane-slide-30 {
+  to {
+    background-position: 30px 0;
+  }
+}
+.journey__marker {
+  box-shadow: 0 0 0 0 rgba(250, 174, 11, 0.5);
+  transition: transform 0.25s ease;
+}
+.journey__stop.is-in .journey__marker {
+  animation: marker-ping 1.4s calc(var(--i, 0) * 180ms + 300ms) ease-out 1;
+}
+@keyframes marker-ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(250, 174, 11, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 18px rgba(250, 174, 11, 0);
+  }
+}
+.journey__stop:hover .journey__marker {
+  transform: translateY(-4px) scale(1.06);
+}
+.landing-notes__grid > div {
+  padding: var(--s5);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--line);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.landing-notes__grid > div:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(6, 20, 41, 0.08);
+}
+.landing-notes__grid {
+  border-top: 0;
+}
+
+/* ---------------------------------------------------------------- Sign-in brand panel */
+.auth__brand {
+  /* plain Night Ink: the reversed logo artwork is made for it */
+  background: var(--night);
+}
+.auth__brand > :not(.backdrop) {
+  position: relative;
+  z-index: 1;
+}
+.auth__brand .lane {
+  background-size: 10px 112px;
+  animation: lane-scroll-auth 1.8s linear infinite;
+}
+@keyframes lane-scroll-auth {
+  to {
+    background-position: 0 112px;
+  }
+}
+.auth__brand .logo {
+  animation: rise-in 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.auth__card {
+  animation: rise-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.auth__form {
+  background:
+    radial-gradient(700px 400px at 100% 0%, rgba(250, 174, 11, 0.08), transparent 60%),
+    transparent;
+}
+
+/* ---------------------------------------------------------------- Footer */
+.site-footer {
+  position: relative;
+  overflow: hidden;
+}
+/* a road band along the bottom, clear of the logo (which must sit on plain Night Ink) */
+.site-footer::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: calc(100% + 480px);
+  bottom: 0;
+  will-change: transform;
+  height: 70px;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='70' viewBox='0 0 480 70'%3E%3Cpath d='M-10 50C110 20 200 60 300 40s120-30 190-20' fill='none' stroke='%23F5F7FA' stroke-opacity='.05' stroke-width='18' stroke-linecap='round'/%3E%3Cpath d='M-10 50C110 20 200 60 300 40s120-30 190-20' fill='none' stroke='%23FAAE0B' stroke-opacity='.3' stroke-width='1.6' stroke-dasharray='10 12'/%3E%3C/svg%3E")
+    repeat-x 0 100% / 480px 70px;
+  animation: footer-road 18s linear infinite;
+}
+@keyframes footer-road {
+  from {
+    transform: translate3d(-480px, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+.site-footer > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------- Headers: frosted glass */
+.site-header,
+.topbar:not(.topbar--dark) {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: saturate(1.5) blur(14px);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px);
+  border-bottom-color: rgba(10, 34, 68, 0.08);
+}
+.topbar--dark {
+  background: rgba(6, 20, 41, 0.9);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+
+/* ---------------------------------------------------------------- Buttons */
+.btn {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+.btn--primary {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(250, 174, 11, 0.28);
+}
+.btn--primary:hover:not(:disabled) {
+  box-shadow: 0 10px 26px rgba(250, 174, 11, 0.38);
+  transform: translateY(-1px);
+}
+/* a light sheen sweeps across the main call-to-action buttons */
+.btn--primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.45) 48%, transparent 66%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.btn--primary:hover:not(:disabled)::after {
+  animation: sheen 0.9s ease;
+}
+@keyframes sheen {
+  to {
+    transform: translateX(120%);
+  }
+}
+.btn--navy:hover:not(:disabled) {
+  box-shadow: 0 10px 24px rgba(10, 34, 68, 0.28);
+  transform: translateY(-1px);
+}
+
+/* ---------------------------------------------------------------- Cards and panels */
+.panel {
+  box-shadow: 0 1px 2px rgba(6, 20, 41, 0.04), 0 8px 24px rgba(6, 20, 41, 0.04);
+}
+.report-card,
+.task {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.report-card:hover,
+.task:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(6, 20, 41, 0.1);
+}
+.report-card__photo img,
+.task__photo img {
+  transition: transform 0.4s ease;
+}
+.report-card:hover .report-card__photo img,
+.task:hover .task__photo img {
+  transform: scale(1.06);
+}
+
+/* ---------------------------------------------------------------- Page entrance
+   Content of each page rises in, item by item, when the page opens. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page > * {
+  animation: rise-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.page > *:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.page > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.page > *:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.page > *:nth-child(5) {
+  animation-delay: 0.2s;
+}
+.page > *:nth-child(n + 6) {
+  animation-delay: 0.25s;
+}
+.mapscreen {
+  animation: fade-in 0.4s ease both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- Scroll reveal */
+.reveal-on [data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(var(--i, 0) * 110ms);
+}
+.reveal-on [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------- Links */
+.site-footer a,
+.landing-notes a,
+.auth__switch a {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 2px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.25s ease;
+}
+.site-footer a:hover,
+.landing-notes a:hover,
+.auth__switch a:hover {
+  background-size: 100% 2px;
+}
+
+/* ---------------------------------------------------------------- Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal-on [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

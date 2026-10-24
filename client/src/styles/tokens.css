@@ -1,0 +1,120 @@
+/* Wayguard design tokens — values from the official Wayguard Brand Sheet.
+   Fonts are self-hosted (SIL Open Font License, see /fonts/*-OFL.txt). */
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/montserrat-800.woff') format('woff');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/montserrat-700.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('/fonts/nunito-sans-400.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('/fonts/nunito-sans-600.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('/fonts/nunito-sans-700.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Core colours */
+  --navy: #0a2244; /* Wayguard Navy — W mark, WAY, headlines */
+  --amber: #faae0b; /* Road Amber — GUARD, road edge, alerts */
+  --night: #061429; /* Night Ink — dark backgrounds and body text */
+  --cloud: #f5f7fa; /* Cloud — light backgrounds */
+  --white: #ffffff;
+
+  /* Navy and amber scales */
+  --navy-900: #061429;
+  --navy-800: #0a2244;
+  --navy-700: #12305f;
+  --navy-500: #2b4f8a;
+  --navy-300: #6d8bbe;
+  --navy-100: #e3eaf5;
+  --amber-800: #b87800;
+  --amber-600: #e09a00;
+  --amber-500: #faae0b;
+  --amber-300: #ffc94d;
+  --amber-100: #ffe29a;
+  --amber-50: #fff6dc;
+
+  /* Supporting neutrals (the brand's "5%") */
+  --text: #061429;
+  --text-muted: #4a5568;
+  --text-subtle: #586579; /* 5.5:1 on Cloud */
+  --line: #dbe1ea;
+  --line-strong: #c3ccd9;
+  --surface: #ffffff;
+  --surface-sunken: #eef2f7;
+
+  /* Semantic — always paired with an icon and a label, never colour alone */
+  --danger: #b42318;
+  --danger-bg: #fdecea;
+  --success: #1f7a4d;
+  --success-bg: #e6f4ec;
+  --info: #2b4f8a;
+
+  /* Type */
+  --font-head: 'Montserrat', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-body: 'Nunito Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --fs-xs: 0.75rem; /* 12 */
+  --fs-sm: 0.875rem; /* 14 */
+  --fs-md: 1rem; /* 16 */
+  --fs-lg: 1.25rem; /* 20 */
+  --fs-xl: 1.5625rem; /* 25 */
+  --fs-2xl: 1.953rem; /* 31 */
+  --fs-3xl: 2.441rem; /* 39 */
+  --fs-4xl: 3.052rem; /* 49 */
+
+  /* Space (4 px grid) */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+
+  /* Shape — radius grows with the size of the element */
+  --r-sm: 6px; /* chips inside tables, small tags */
+  --r-md: 10px; /* buttons, inputs */
+  --r-lg: 14px; /* panels */
+  --r-pill: 999px;
+
+  /* Elevation is reserved for things that float above the page */
+  --shadow-overlay: 0 12px 32px rgba(6, 20, 41, 0.18), 0 2px 6px rgba(6, 20, 41, 0.08);
+  --focus: 0 0 0 3px rgba(250, 174, 11, 0.55), 0 0 0 1px var(--navy);
+
+  /* Layout */
+  --content-max: 1180px;
+  --reading-max: 68ch;
+  --header-h: 64px;
+  --tabbar-h: 64px;
+  --sidebar-w: 248px;
+
+  /* Breakpoints (for reference; CSS uses the raw values)
+     sm 600px · md 900px · lg 1200px */
+}

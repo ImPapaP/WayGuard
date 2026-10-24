@@ -1,0 +1,38 @@
+# Render Blueprint: one free web service for Wayguard. The database is a
+# separate free PostgreSQL on Neon (Render's free database is deleted after
+# 30 days). Step-by-step: docs/10-go-live.md
+services:
+  - type: web
+    name: wayguard
+    runtime: node
+    region: singapore
+    plan: free
+    # Dev dependencies (esbuild) are needed to build the web client.
+    buildCommand: npm install --include=dev && npm run build
+    # Applies database migrations, creates the first administrator once
+    # (INITIAL_ADMIN_*), then starts the server.
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "true"
+      # Render's free disk is wiped on every restart: keep photos in PostgreSQL.
+      - key: PHOTO_STORAGE
+        value: database
+      - key: APP_TIMEZONE
+        value: Asia/Manila
+      # Asked for when you create the Blueprint:
+      - key: DATABASE_URL
+        sync: false
+      - key: GEOCODER_EMAIL
+        sync: false
+      - key: INITIAL_ADMIN_EMAIL
+        sync: false
+      - key: INITIAL_ADMIN_NAME
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false

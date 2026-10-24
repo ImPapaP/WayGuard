@@ -1,0 +1,21 @@
+# Optional: PostgreSQL 16 for local development.
+#   docker compose up -d
+# Then use in .env:
+#   DATABASE_URL=postgres://wayguard:wayguard_local_dev@localhost:5432/wayguard
+#   TEST_DATABASE_URL=postgres://wayguard:wayguard_local_dev@localhost:5432/wayguard_test
+# The password below is for a local development container only.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wayguard
+      POSTGRES_PASSWORD: wayguard_local_dev
+      POSTGRES_DB: wayguard
+    ports:
+      - '5432:5432'
+    volumes:
+      - wayguard-db:/var/lib/postgresql/data
+      - ./scripts/docker-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+volumes:
+  wayguard-db:

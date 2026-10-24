@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /$
+Allow: /map
+Disallow: /app
+Disallow: /admin
+Disallow: /crew
+Disallow: /api/

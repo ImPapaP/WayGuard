@@ -1,0 +1,118 @@
+/* Control strip shown only in the self-contained browser preview. */
+.preview-bar {
+  background: var(--night);
+  color: var(--cloud);
+  border-bottom: 3px solid var(--amber);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  position: relative;
+  z-index: 40;
+}
+
+.preview-bar__inner {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-block: var(--s2);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s4);
+}
+
+.preview-bar__note {
+  margin: 0;
+  min-width: 0;
+  line-height: 1.45;
+  color: #c9d3e2;
+}
+
+.preview-bar__note code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  background: rgba(250, 174, 11, 0.16);
+  color: var(--amber-300);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+}
+
+.preview-bar__tag {
+  display: inline-block;
+  margin-right: var(--s2);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--amber);
+  color: var(--night);
+  font-family: var(--font-head);
+  font-weight: 800;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.preview-bar__roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.preview-bar__label {
+  margin-right: var(--s1);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9fb0c8;
+}
+
+.preview-bar__role {
+  font: inherit;
+  font-weight: 700;
+  color: var(--cloud);
+  background: transparent;
+  border: 1px solid rgba(245, 247, 250, 0.28);
+  border-radius: var(--r-pill);
+  padding: 4px 12px;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.preview-bar__role:hover {
+  border-color: var(--amber-300);
+}
+
+.preview-bar__role[aria-pressed='true'] {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--night);
+}
+
+.preview-bar__role:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(250, 174, 11, 0.6);
+}
+
+@media (max-width: 520px) {
+  .preview-bar__inner {
+    gap: 6px var(--s3);
+    padding-block: 6px;
+  }
+  .preview-bar__note {
+    font-size: var(--fs-xs);
+  }
+  .preview-bar__label {
+    display: none;
+  }
+  .preview-bar__roles {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .preview-bar__role {
+    flex: 1 1 auto;
+    padding: 3px 8px;
+    min-height: 32px;
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+  }
+}
