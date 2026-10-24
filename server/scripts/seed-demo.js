@@ -1,13 +1,19 @@
 // Loads clearly-labelled DEMONSTRATION data for presenting Wayguard:
-// agencies, teams, demo accounts and ~26 reports in every workflow stage.
+// agencies, 4 road crews, 15 demo accounts and ~116 reports in every
+// workflow stage across Malolos.
 //
 //   npm run db:seed            add demo data (skips if already present)
 //   npm run db:seed -- --fresh remove previous demo data first, then add it
+//   npm run db:seed:auto       used at start-up on hosting (Render): does
+//                              nothing unless DEMO_DATA=on; DEMO_DATA=remove
+//                              deletes the demo data again. Never stops the
+//                              app from starting.
 //
-// Every demo account uses the password from SEED_DEMO_PASSWORD in .env.
-// Demo reports are flagged is_demo = TRUE and shown with a "Demo" tag in the
-// app; their photos are generated illustrations labelled "DEMO PHOTO".
-// Refuses to run when NODE_ENV=production.
+// Every demo account uses the password from SEED_DEMO_PASSWORD (nothing is
+// hard-coded). Demo accounts use @demo.wayguard.test addresses, demo reports
+// are flagged is_demo = TRUE and shown with a "Demo" tag in the app, and their
+// photos are generated illustrations labelled "DEMO PHOTO".
+// With NODE_ENV=production it only runs when DEMO_DATA=on is set explicitly.
 import fs from 'node:fs/promises';
 import sharp from 'sharp';
 import { config } from '../src/config.js';
@@ -70,10 +76,20 @@ const USERS = [
   ['admin2', 'Carlo Bautista', 'admin', null],
   ['crew.alpha', 'Ramon Cruz', 'maintenance', 'Road Crew Alpha'],
   ['crew.bravo', 'Lito Garcia', 'maintenance', 'Road Crew Bravo'],
+  ['crew.charlie', 'Edwin Castillo', 'maintenance', 'Road Crew Charlie'],
+  ['crew.delta', 'Noel Aguilar', 'maintenance', 'Road Crew Delta'],
   ['maria', 'Maria Santos', 'citizen', null],
   ['juan', 'Juan Dela Cruz', 'citizen', null],
   ['liza', 'Liza Mendoza', 'citizen', null],
+  ['ben', 'Benjie Villanueva', 'citizen', null],
+  ['grace', 'Grace Aquino', 'citizen', null],
+  ['mark', 'Mark Soriano', 'citizen', null],
+  ['joy', 'Joy Pascual', 'citizen', null],
+  ['paolo', 'Paolo Ramos', 'citizen', null],
+  ['rose', 'Rosalie Torres', 'citizen', null],
 ];
+const TEAMS = [...new Set(USERS.map((u) => u[3]).filter(Boolean))];
+const TEAM_CREW = Object.fromEntries(USERS.filter((u) => u[3]).map((u) => [u[3], u[0]]));
 
 // [reporter, status, days ago, severity, road, barangay, landmark, lat, lng, road type, hazards, extra]
 const REPORTS = [
@@ -105,6 +121,62 @@ const REPORTS = [
   ['liza', 'duplicate', 7.5, 'high', 'Paseo del Congreso', 'San Gabriel', 'Barasoain Church side', 14.84668, 120.81262, 'city_municipal', ['deep'], { duplicateOfIndex: 11 }],
 ];
 
+// More reports, generated deterministically around real Malolos roads.
+const ANCHORS = REPORTS.filter((r) => r[9] !== 'private').map((r) => [r[4], r[5], r[7], r[8], r[9]]);
+const LANDMARKS = [
+  'Near the tricycle terminal', 'Beside the bakery', 'In front of the barangay hall', 'Near the waiting shed',
+  'Across the public market', 'Beside the water refilling station', 'Near the school gate', 'In front of the chapel',
+  'Corner of the hardware store', 'Near the drugstore', 'Beside the covered court', 'Before the bridge approach',
+  'Near the bus stop', 'In front of the carinderia', 'Beside the rice field', 'Near the subdivision entrance',
+];
+const HAZARDS = ['deep', 'wide', 'water_filled', 'motorcycle_risk', 'causes_swerving', 'poor_lighting', 'near_school_or_crossing', 'damaged_vehicles'];
+const COMMENTS = [
+  'Smooth now, salamat po!', 'Quick repair, very happy.', 'Fixed but took a while.', 'Good work by the crew.',
+  null, null, 'The patch is a bit uneven but much safer.', 'Thank you for acting on this.',
+];
+function pick(list) {
+  return list[Math.floor(rand() * list.length)];
+}
+function between(a, b) {
+  return a + rand() * (b - a);
+}
+function generatedReports(count) {
+  const citizens = USERS.filter((u) => u[2] === 'citizen').map((u) => u[0]);
+  const statuses = [
+    ['submitted', 14], ['under_review', 9], ['verified', 9], ['assigned', 12],
+    ['in_progress', 12], ['resolved', 34], ['rejected', 5],
+  ];
+  const total = statuses.reduce((n, [, w]) => n + w, 0);
+  const out = [];
+  for (let i = 0; i < count; i += 1) {
+    let roll = rand() * total;
+    const status = statuses.find(([, w]) => (roll -= w) < 0)[0];
+    const [road, brgy, lat0, lng0, roadType] = pick(ANCHORS);
+    const severity = pick(['high', 'high', 'medium', 'medium', 'medium', 'low', 'low']);
+    const hazards = HAZARDS.filter(() => rand() < (severity === 'high' ? 0.3 : 0.12));
+    const lat = +(lat0 + between(-0.0035, 0.0035)).toFixed(5);
+    const lng = +(lng0 + between(-0.0035, 0.0035)).toFixed(5);
+    const team = pick(TEAMS);
+    const days = {
+      submitted: between(0.05, 3), under_review: between(1, 6), verified: between(3, 10), assigned: between(5, 15),
+      in_progress: between(8, 22), resolved: between(14, 170), rejected: between(8, 60),
+    }[status];
+    let extra = {};
+    if (status === 'assigned') extra = { team, due: Math.round(between(-2, 12)) };
+    if (status === 'in_progress') extra = { team, due: Math.round(between(-3, 6)), progress: true, completed: rand() < 0.25 };
+    if (status === 'resolved') {
+      extra = { team, resolvedAfter: Math.round(between(3, Math.min(25, days - 1))) };
+      if (rand() < 0.7) Object.assign(extra, { rating: pick([5, 5, 4, 4, 4, 3, 2]), comment: pick(COMMENTS) });
+    }
+    if (status === 'rejected') {
+      extra = { reason: pick(['Photo shows a speed bump, not road damage.', 'Already repaired when inspected.', 'Location is a private driveway — outside LGU jurisdiction.']) };
+    }
+    out.push([pick(citizens), status, +days.toFixed(2), severity, road, brgy, pick(LANDMARKS), lat, lng, roadType, hazards, extra]);
+  }
+  return out;
+}
+REPORTS.push(...generatedReports(90));
+
 const DESCRIPTIONS = {
   high: 'Large, deep pothole across most of the lane. Vehicles brake suddenly to avoid it and motorcycles have nearly fallen.',
   medium: 'Pothole about the size of a tyre. It collects water when it rains and is hard to see at night.',
@@ -132,7 +204,7 @@ async function removeDemoData(sql) {
          OR EXISTS (SELECT 1 FROM repair_updates ru JOIN users u ON u.id = ru.author_id WHERE ru.report_id = r.id AND u.email LIKE ${'%@' + DEMO_DOMAIN})
          OR EXISTS (SELECT 1 FROM report_photos p JOIN users u ON u.id = p.uploaded_by WHERE p.report_id = r.id AND u.email LIKE ${'%@' + DEMO_DOMAIN}))`;
     await tx`DELETE FROM users WHERE email LIKE ${'%@' + DEMO_DOMAIN}`;
-    await tx`DELETE FROM maintenance_teams WHERE name IN ('Road Crew Alpha', 'Road Crew Bravo')
+    await tx`DELETE FROM maintenance_teams WHERE name IN ${tx(TEAMS)}
              AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.team_id = maintenance_teams.id)
              AND NOT EXISTS (SELECT 1 FROM users u WHERE u.team_id = maintenance_teams.id)`;
   });
@@ -140,15 +212,29 @@ async function removeDemoData(sql) {
   console.log(`Removed previous demo data (${photos.length} photos).`);
 }
 
+const AUTO = process.argv.includes('--auto');
+const DEMO_SWITCH = (process.env.DEMO_DATA || '').trim().toLowerCase();
+
 async function main() {
-  if (config.isProduction) throw new Error('Refusing to load demo data when NODE_ENV=production.');
-  const password = process.env.SEED_DEMO_PASSWORD || '';
-  if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    throw new Error('Set SEED_DEMO_PASSWORD in .env (10+ characters with letters and numbers) before seeding.');
+  if (AUTO && !['on', 'remove'].includes(DEMO_SWITCH)) {
+    console.log('Demo data: off (set DEMO_DATA=on to load labelled sample data).');
+    return;
+  }
+  if (config.isProduction && !['on', 'remove'].includes(DEMO_SWITCH)) {
+    throw new Error('Refusing to load demo data when NODE_ENV=production. Set DEMO_DATA=on to allow it explicitly.');
   }
   const sql = getSql();
-  const fresh = process.argv.includes('--fresh');
   const [existing] = await sql`SELECT 1 FROM users WHERE email = ${`admin@${DEMO_DOMAIN}`}`;
+  if (DEMO_SWITCH === 'remove') {
+    if (existing) await removeDemoData(sql);
+    else console.log('Demo data: nothing to remove.');
+    return;
+  }
+  const password = process.env.SEED_DEMO_PASSWORD || '';
+  if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    throw new Error('Set SEED_DEMO_PASSWORD (10+ characters with letters and numbers) before loading demo data.');
+  }
+  const fresh = process.argv.includes('--fresh');
   if (existing && !fresh) {
     console.log('Demo data is already loaded. Use `npm run db:seed -- --fresh` to recreate it.');
     return;
@@ -177,7 +263,7 @@ async function main() {
         agencyIds[jurisdiction] = a.id;
       }
       const teamIds = {};
-      for (const name of ['Road Crew Alpha', 'Road Crew Bravo']) {
+      for (const name of TEAMS) {
         const [t] = await tx`
           INSERT INTO maintenance_teams (name, agency_id, description)
           VALUES (${name}, ${agencyIds.city_municipal}, 'Demo maintenance team')
@@ -209,10 +295,12 @@ async function main() {
           barangay: agencyIds.barangay,
         },
       };
+      // Settings an administrator already saved are kept.
       for (const [key, value] of Object.entries(settings)) {
         await tx`
           INSERT INTO settings (key, value, updated_by) VALUES (${key}, ${tx.json(value)}, ${adminId})
-          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`;
+          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by
+          WHERE settings.updated_by IS NULL`;
       }
 
       // Reports ------------------------------------------------------------
@@ -265,7 +353,7 @@ async function main() {
         await notify([adminId, userIds.admin2], `New report ${code}`, `${severity} severity pothole on ${road}.`, created, 'report_submitted');
 
         let current = 'submitted';
-        const crew = extra.team === 'Road Crew Bravo' ? userIds['crew.bravo'] : userIds['crew.alpha'];
+        const crew = userIds[TEAM_CREW[extra.team] || 'crew.alpha'];
         const move = async (to, when, message = null, extraSet = {}) => {
           await tx`UPDATE reports SET ${tx({ status: to, updated_at: when, ...extraSet })} WHERE id = ${r.id}`;
           await ev('status_changed', { actor: to === 'in_progress' ? crew : adminId, from: current, to, message, at: when });
@@ -361,8 +449,8 @@ async function main() {
   }
 
   console.log('\nDemo data loaded (all records are labelled as demo):');
-  console.log(`  ${REPORTS.length} reports, ${AGENCIES.length} agencies, 2 maintenance teams, ${storedKeys.length} demo photos`);
-  console.log('\nDemo accounts (password = SEED_DEMO_PASSWORD from your .env):');
+  console.log(`  ${REPORTS.length} reports, ${AGENCIES.length} agencies, ${TEAMS.length} maintenance teams, ${storedKeys.length} demo photos`);
+  console.log('\nDemo accounts (password = SEED_DEMO_PASSWORD):');
   for (const [local, name, role, team] of USERS) {
     console.log(`  ${role.padEnd(12)} ${`${local}@${DEMO_DOMAIN}`.padEnd(32)} ${name}${team ? ` (${team})` : ''}`);
   }
@@ -371,6 +459,7 @@ async function main() {
 main()
   .catch((err) => {
     console.error(`Seeding failed: ${err.message}`);
-    process.exitCode = 1;
+    // At start-up (--auto) a problem with demo data must not keep the app down.
+    if (!AUTO) process.exitCode = 1;
   })
   .finally(() => closeSql());

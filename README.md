@@ -111,7 +111,7 @@ PostgreSQL password and does steps 2–5 for you.)
 ## 5. Create accounts and (optionally) demo data
 
 **For a demonstration**, load clearly-labelled demo data — agencies, two road
-crews, demo accounts and 26 reports in every workflow stage:
+crews, 15 demo accounts and 116 reports in every workflow stage:
 
 ```bash
 npm run db:seed
@@ -119,14 +119,15 @@ npm run db:seed
 
 | Demo account | Role |
 | --- | --- |
-| `admin@demo.wayguard.test` | LGU administrator |
-| `crew.alpha@demo.wayguard.test`, `crew.bravo@demo.wayguard.test` | Maintenance personnel |
-| `maria@demo.wayguard.test`, `juan@demo.wayguard.test`, `liza@demo.wayguard.test` | Citizens |
+| `admin@demo.wayguard.test`, `admin2@demo.wayguard.test` | LGU administrators |
+| `crew.alpha@…`, `crew.bravo@…`, `crew.charlie@…`, `crew.delta@demo.wayguard.test` | Maintenance personnel (one per road crew) |
+| `maria@…`, `juan@…`, `liza@…`, `ben@…`, `grace@…`, `mark@…`, `joy@…`, `paolo@…`, `rose@demo.wayguard.test` | Citizens |
 
 All demo accounts use the `SEED_DEMO_PASSWORD` from your `.env`. Demo reports
 are tagged "Demo" everywhere and their photos are illustrations stamped
 "DEMO PHOTO". `npm run db:seed -- --fresh` removes and recreates the demo data.
-Seeding is refused when `NODE_ENV=production`.
+Seeding is refused when `NODE_ENV=production` unless `DEMO_DATA=on` is set
+explicitly (used for a hosted demonstration, see `docs/10-go-live.md`).
 
 **For real use**, create the first administrator (there is no default
 administrator password anywhere in Wayguard):

@@ -83,7 +83,7 @@ async function main() {
 
   // 2. .env
   const contact = await ask('\nA contact e-mail for the free address search (required by OpenStreetMap)', { fallback: '' });
-  const demo = yes(await ask('Load the labelled DEMO data (26 sample reports and demo accounts) for practice? (y/N)', { fallback: 'n' }));
+  const demo = yes(await ask('Load the labelled DEMO data (116 sample reports and 15 demo accounts) for practice? (y/N)', { fallback: 'n' }));
   let demoPass = '';
   if (demo) {
     demoPass = await ask('Password for the demo accounts (10+ characters, letters and numbers)', { hidden: true });

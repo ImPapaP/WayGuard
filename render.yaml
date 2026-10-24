@@ -9,9 +9,10 @@ services:
     plan: free
     # Dev dependencies (esbuild) are needed to build the web client.
     buildCommand: npm install --include=dev && npm run build
-    # Applies database migrations, creates the first administrator once
-    # (INITIAL_ADMIN_*), then starts the server.
-    startCommand: npm run db:migrate && npm start
+    # Applies database migrations, loads the labelled demo data only if
+    # DEMO_DATA=on (DEMO_DATA=remove deletes it), creates the first
+    # administrator once (INITIAL_ADMIN_*), then starts the server.
+    startCommand: npm run db:migrate && npm run db:seed:auto && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

@@ -40,7 +40,7 @@ Do Part A first; it proves everything works before you put it online.
    ```
 
    It asks for the postgres password from step 2, a contact e-mail (needed by
-   the free address search), whether to load the **demo data** (26 sample
+   the free address search), whether to load the **demo data** (116 sample
    reports; say **y** for practice/presentations), and whether to create your
    own administrator account.
 7. Start Wayguard:
@@ -141,8 +141,23 @@ install it like an app.
 Change the code, then in GitHub Desktop **Commit** and **Push**. Render
 rebuilds and redeploys automatically; the database and photos are kept.
 
-### Demo data online
+### Sample data online (for a class demonstration)
 
-Production mode never loads demo data (so it cannot mix with real reports).
-For a class demonstration online, create a few reports yourself, or present
-from your computer (Part A) where the labelled demo data is available.
+Production mode loads no demo data unless you switch it on. To fill the live
+site with the labelled sample data (116 reports around Malolos in every stage,
+4 road crews, 15 demo accounts, illustrated "DEMO PHOTO" pictures):
+
+1. Render → your service → **Environment** → add
+   - `DEMO_DATA` = `on`
+   - `SEED_DEMO_PASSWORD` = a password for all demo accounts (10+ characters
+     with letters and numbers). Choose your own; anyone who knows it can sign
+     in as the demo administrator.
+2. **Save, rebuild, and deploy**. The log shows `Demo data loaded` and the
+   list of demo accounts (all `@demo.wayguard.test`, e.g.
+   `admin@demo.wayguard.test`, `crew.alpha@demo.wayguard.test`,
+   `maria@demo.wayguard.test`).
+
+It loads once; restarts keep it. Settings your administrator already saved are
+kept. **Before real use**, set `DEMO_DATA` = `remove` and deploy: every demo
+account, demo report and demo photo is deleted (real accounts and reports are
+untouched). Then delete `DEMO_DATA` and `SEED_DEMO_PASSWORD`.

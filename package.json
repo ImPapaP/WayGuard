@@ -19,6 +19,7 @@
     "start": "npm start -w server",
     "db:migrate": "npm run migrate -w server",
     "db:seed": "npm run seed -w server --",
+    "db:seed:auto": "npm run seed:auto -w server",
     "create-admin": "npm run create-admin -w server --",
     "test": "npm test -w server",
     "test:e2e": "node tests/e2e/run.mjs",
