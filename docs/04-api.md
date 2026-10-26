@@ -27,13 +27,18 @@ Common codes: `validation_error` / `bad_request` (400), `unauthorized` (401),
 
 ## Platform administration
 
-Only a `platform_admin` may call these endpoints. Bootstrap the first platform account with `npm run create-platform-admin`; then use the platform workspace at `/platform/lgus`.
+Only a `platform_admin` may call these endpoints. Bootstrap the first platform account with `npm run create-platform-admin`. The bundled PSA PSGC directory is synchronized with `npm run psgc:sync` during startup; island groups are WayGuard grouping nodes.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/platform/lgus` | List LGUs, active staff counts, report counts and their initial administrator |
-| POST | `/api/platform/lgus` | Create an LGU and its first administrator; body: `name, city, province, slug?, map_latitude?, map_longitude?, admin_name, admin_email, admin_phone?, temporary_password` |
-| PATCH | `/api/platform/lgus/:id` | Activate/deactivate an LGU; deactivation revokes tenant sessions |
+| GET | `/api/platform/lgus` | List hierarchy nodes, including parent IDs, jurisdiction level, PSGC code/release, directory flag, active staff counts and report counts |
+| POST | `/api/platform/lgus` | Create a custom LGU tenant and its first administrator; body: `name, city?, province?, jurisdiction_level, parent_lgu_id, slug?, map_latitude?, map_longitude?, admin_name, admin_email, admin_phone?, temporary_password` |
+| PATCH | `/api/platform/lgus/:id` | Update hierarchy placement, boundary or active state; validates parent levels and revokes sessions on deactivation |
+| POST | `/api/platform/accounts` | Create an LGU administrator for an active PSGC directory node; body: `full_name, email, phone?, lgu_id, temporary_password`. Forces password change on first sign-in and records assignment history |
+| GET | `/api/platform/accounts` | Central account directory with primary LGU and assigned jurisdiction IDs |
+| PATCH | `/api/platform/accounts/:id` | Update role or active status; role/status changes revoke sessions |
+| PUT | `/api/platform/accounts/:id/jurisdictions` | Assign an admin account to one or more active hierarchy nodes; permissions inherit descendants and assignment changes are audited |
+| GET | `/api/platform/accounts/:id/jurisdiction-history` | Read assignment and revocation history |
 
 ## Account
 
