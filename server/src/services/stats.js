@@ -12,7 +12,17 @@ function rangeCondition(query, column = sql`r.created_at`) {
 
 export async function computeStats(query = {}, lguId = null) {
   const tz = config.timezone;
-  const inRange = sql`${lguId === null || lguId === undefined ? sql`TRUE` : sql`r.lgu_id = ${lguId}`} AND ${rangeCondition(query)}`;
+  const reportScope = lguId === null || lguId === undefined
+    ? sql`TRUE`
+    : Array.isArray(lguId)
+      ? sql`r.lgu_id = ANY(${lguId})`
+      : sql`r.lgu_id = ${lguId}`;
+  const teamScope = lguId === null || lguId === undefined
+    ? sql`TRUE`
+    : Array.isArray(lguId)
+      ? sql`t.lgu_id = ANY(${lguId})`
+      : sql`t.lgu_id = ${lguId}`;
+  const inRange = sql`${reportScope} AND ${rangeCondition(query)}`;
 
   const [totals] = await sql`
     SELECT
@@ -47,10 +57,10 @@ export async function computeStats(query = {}, lguId = null) {
     )
     SELECT to_char(m, 'YYYY-MM') AS month,
       (SELECT count(*)::int FROM reports r
-        WHERE (${lguId}::int IS NULL OR r.lgu_id = ${lguId})
+        WHERE ${reportScope}
           AND date_trunc('month', r.created_at AT TIME ZONE ${tz}) = m) AS reported,
       (SELECT count(*)::int FROM reports r
-        WHERE r.status = 'resolved' AND (${lguId}::int IS NULL OR r.lgu_id = ${lguId})
+        WHERE r.status = 'resolved' AND ${reportScope}
           AND date_trunc('month', r.resolved_at AT TIME ZONE ${tz}) = m) AS resolved
     FROM months ORDER BY m`;
 
@@ -67,7 +77,7 @@ export async function computeStats(query = {}, lguId = null) {
       (SELECT count(*)::int FROM assignments a JOIN reports r ON r.id = a.report_id
         WHERE a.team_id = t.id AND a.end_reason = 'completed' AND ${inRange}) AS completed
     FROM maintenance_teams t
-    WHERE t.is_active AND (${lguId}::int IS NULL OR t.lgu_id = ${lguId})
+    WHERE t.is_active AND ${teamScope}
     ORDER BY t.name`;
 
   const [feedback] = await sql`
@@ -81,12 +91,12 @@ export async function computeStats(query = {}, lguId = null) {
     JOIN reports r ON r.id = e.report_id
     LEFT JOIN users u ON u.id = e.actor_id
     WHERE e.event_type IN ('created', 'status_changed', 'repair_completed', 'reassigned', 'feedback')
-      AND (${lguId}::int IS NULL OR r.lgu_id = ${lguId})
+      AND ${reportScope}
     ORDER BY e.created_at DESC, e.id DESC LIMIT 8`;
 
   const [demo] = await sql`
-    SELECT count(*)::int AS n FROM reports
-    WHERE is_demo AND (${lguId}::int IS NULL OR lgu_id = ${lguId})`;
+    SELECT count(*)::int AS n FROM reports r
+    WHERE r.is_demo AND ${reportScope}`;
 
   return {
     generated_at: new Date().toISOString(),
