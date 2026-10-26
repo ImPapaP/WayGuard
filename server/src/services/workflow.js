@@ -190,8 +190,8 @@ export function assignReport(reportId, user, { teamId, instructions, dueDate }) 
     }
 
     await tx`
-      INSERT INTO assignments (report_id, team_id, assigned_by, instructions, due_date)
-      VALUES (${report.id}, ${team.id}, ${user.id}, ${instructions || null}, ${dueDate || null})`;
+      INSERT INTO assignments (lgu_id, report_id, team_id, assigned_by, instructions, due_date)
+      VALUES (${report.lgu_id}, ${report.id}, ${team.id}, ${user.id}, ${instructions || null}, ${dueDate || null})`;
 
     if (reassigning) {
       // Work restarts with the new team; any pending completion is cleared.
