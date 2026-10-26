@@ -19,7 +19,7 @@ const createLguSchema = z.object({
   city: text(2, 100, 'City / municipality'),
   province: text(2, 100, 'Province'),
   map_latitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-90).max(90)])
-    .transform((v) => (v === '' || v === null ? null : v)),
+    .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_longitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-180).max(180)])
     .transform((v) => (v === '' || v === null ? null : v)),
   admin_name: text(2, 100, 'Administrator name'),
