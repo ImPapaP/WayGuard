@@ -21,27 +21,35 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const refreshConfig = useCallback(async () => {
+    try {
+      const nextConfig = await api.get('/api/public/config');
+      setConfig(nextConfig);
+      return nextConfig;
+    } catch {
+      const fallback = {
+        lgu_name: 'Local Government Unit',
+        lgus: [],
+        map_center: { lat: 14.8433, lng: 120.8114, zoom: 14 },
+        max_photos_per_report: 5,
+        max_photo_mb: 8,
+        tiles: {
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19,
+        },
+        geocoder_enabled: false,
+        offline: true,
+      };
+      setConfig(fallback);
+      return fallback;
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-    api
-      .get('/api/public/config')
-      .then(setConfig)
-      .catch(() =>
-        setConfig({
-          lgu_name: 'Local Government Unit',
-          map_center: { lat: 14.8433, lng: 120.8114, zoom: 14 },
-          max_photos_per_report: 5,
-          max_photo_mb: 8,
-          tiles: {
-            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19,
-          },
-          geocoder_enabled: false,
-          offline: true,
-        }),
-      );
-  }, [refresh]);
+    refreshConfig();
+  }, [refresh, refreshConfig]);
 
   // If the server says the session ended, reflect it immediately.
   useEffect(
@@ -56,14 +64,16 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const { user: u } = await api.post('/api/auth/login', { email, password });
     setUser(u);
+    await refreshConfig();
     return u;
-  }, []);
+  }, [refreshConfig]);
 
   const register = useCallback(async (payload) => {
     const { user: u } = await api.post('/api/auth/register', payload);
     setUser(u);
+    await refreshConfig();
     return u;
-  }, []);
+  }, [refreshConfig]);
 
   const logout = useCallback(async () => {
     try {
@@ -74,8 +84,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, setUser, refresh, login, register, logout, config }),
-    [user, refresh, login, register, logout, config],
+    () => ({ user, setUser, refresh, refreshConfig, login, register, logout, config }),
+    [user, refresh, refreshConfig, login, register, logout, config],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
