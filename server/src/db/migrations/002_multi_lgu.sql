@@ -72,6 +72,9 @@ ALTER TABLE users
   ADD CONSTRAINT users_team_same_lgu_fk
   FOREIGN KEY (lgu_id, team_id) REFERENCES maintenance_teams (lgu_id, id) ON DELETE RESTRICT;
 ALTER TABLE reports
+  ADD CONSTRAINT reports_reporter_same_lgu_fk
+  FOREIGN KEY (lgu_id, reporter_id) REFERENCES users (lgu_id, id) ON DELETE RESTRICT;
+ALTER TABLE reports
   ADD CONSTRAINT reports_agency_same_lgu_fk
   FOREIGN KEY (lgu_id, agency_id) REFERENCES agencies (lgu_id, id) ON DELETE RESTRICT;
 ALTER TABLE reports
