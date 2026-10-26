@@ -273,20 +273,20 @@ export default function LGUs() {
           <div className="panel__head">
             <h2 id="management-scope-title"><LuShieldCheck aria-hidden /> Management scope</h2>
           </div>
-          <p className="muted">Management provisions LGU workspaces and controls the top-level administrator assignment. Each LGU administrator manages that workspace's accounts, agencies, maintenance teams and operational records.</p>
+          <p className="muted">The official Philippine geographic hierarchy is preloaded from PSGC. Use Accounts & assignments to create or assign administrators for existing regions, provinces, independent cities, municipalities and component cities. Each local administrator manages the operational workspace for their assigned area.</p>
           <div className="form-row form-row--3">
             <div><strong>1. Management</strong><p className="muted small">Platform-wide workspace and jurisdiction oversight</p></div>
             <div><strong>2. LGU administrator</strong><p className="muted small">Accounts, agencies and teams within one LGU</p></div>
             <div><strong>3. Staff and crews</strong><p className="muted small">Operational access assigned by the LGU</p></div>
           </div>
-          <p className="small muted">Create the geographic hierarchy first, then use Accounts & assignments to grant administrators access to a region, province, city or municipality and its descendants.</p>
+          <p className="small muted">Start with the registered PSGC hierarchy below. Assign administrators at any level; their access automatically includes descendant areas. Use the custom LGU form only for an additional workspace that is not already in the official directory.</p>
         </section>
         <div className="form-row form-row--2" style={{ alignItems: 'start' }}>
           <section className="panel">
             <div className="panel__head">
-              <h2><LuUserPlus aria-hidden /> Create an LGU</h2>
+              <h2><LuUserPlus aria-hidden /> Add a custom LGU</h2>
             </div>
-            <p className="muted small">The administrator you create here is automatically assigned to this LGU and must change the temporary password after signing in.</p>
+            <p className="muted small">The official PSGC areas are already listed in the directory. To create an administrator for an existing area, use Accounts & assignments instead. Use this form only for a custom or unlisted workspace; its administrator must change the temporary password after signing in.</p>
             {formError && <Alert type="error">{formError.message}</Alert>}
             <form className="form-stack" onSubmit={createLgu} noValidate>
               <div className="form-row form-row--2">
@@ -320,7 +320,7 @@ export default function LGUs() {
               <TextField label="Administrator e-mail" type="email" value={form.admin_email} onChange={set('admin_email')} error={fieldErrors.admin_email} required />
               <TextField label="Mobile number" type="tel" value={form.admin_phone} onChange={set('admin_phone')} error={fieldErrors.admin_phone} />
               <TextField label="Temporary password" type="text" value={form.temporary_password} onChange={set('temporary_password')} error={fieldErrors.temporary_password} hint="Use at least 8 characters, including a letter and a number. Share it securely." required />
-              <Button type="submit" variant="navy" size="lg" loading={busy} block><LuBuilding2 aria-hidden /> Create LGU and administrator</Button>
+              <Button type="submit" variant="navy" size="lg" loading={busy} block><LuBuilding2 aria-hidden /> Create custom LGU and administrator</Button>
             </form>
             {createdAccount && (
               <div style={{ marginTop: 20 }}>
