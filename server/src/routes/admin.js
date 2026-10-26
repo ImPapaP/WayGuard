@@ -451,6 +451,7 @@ adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
            (SELECT count(*)::int FROM users u WHERE u.team_id = t.id AND u.is_active) AS member_count,
            (SELECT count(*)::int FROM assignments a WHERE a.team_id = t.id AND a.is_active) AS active_tasks
     FROM maintenance_teams t LEFT JOIN agencies ag ON ag.id = t.agency_id AND ag.lgu_id = t.lgu_id
+    LEFT JOIN lgus l ON l.id = t.lgu_id
     WHERE t.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})
     ORDER BY t.is_active DESC, t.name`;
   ctx.json(200, { items: rows });
