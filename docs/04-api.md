@@ -21,15 +21,25 @@ Common codes: `validation_error` / `bad_request` (400), `unauthorized` (401),
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/health` | Server and database check |
-| GET | `/api/public/config` | LGU name, map centre, tile URL and attribution, photo limits, geocoder availability |
+| GET | `/api/public/config` | Active LGU list, current/selected LGU name, map centre, tile URL and attribution, photo limits, geocoder availability |
 | GET | `/api/public/reports` | Verified/assigned/in-progress and recently resolved reports, public fields only. Filters: `status`, `severity`, `bbox=minLng,minLat,maxLng,maxLat` |
 | GET | `/api/public/stats` | Total reported, resolved, average days to resolve |
+
+## Platform administration
+
+Only a `platform_admin` may call these endpoints. Bootstrap the first platform account with `npm run create-platform-admin`; then use the platform workspace at `/platform/lgus`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/platform/lgus` | List LGUs, active staff counts, report counts and their initial administrator |
+| POST | `/api/platform/lgus` | Create an LGU and its first administrator; body: `name, city, province, slug?, admin_name, admin_email, admin_phone?, temporary_password` |
+| PATCH | `/api/platform/lgus/:id` | Activate/deactivate an LGU; deactivation revokes tenant sessions |
 
 ## Account
 
 | Method | Path | Who | Body / notes |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | anyone | `full_name, email, phone?, password` → always a citizen account |
+| POST | `/api/auth/register` | anyone | `full_name, email, phone?, password, lgu_id` → citizen account attached to an active LGU |
 | POST | `/api/auth/login` | anyone | `email, password` |
 | POST | `/api/auth/logout` | anyone | |
 | GET | `/api/auth/me` | anyone | `{ user }` or `{ user: null }` |
@@ -83,7 +93,7 @@ Passwords: 8–128 characters with at least one letter and one number.
 | PATCH | `/api/admin/reports/:id` | `severity, agency_id, road_type, road_name, barangay, landmark` (open reports only; recorded in history) |
 | POST | `/api/admin/reports/:id/notes` | `message, is_public` (public notes notify the reporter) |
 | GET | `/api/admin/stats?from&to` | dashboard statistics (see below) |
-| GET/POST | `/api/admin/users` | list (`q`, `role`, `status`) / create staff: `full_name, email, phone?, role, team_id?, temporary_password` |
+| GET/POST | `/api/admin/users` | LGU admin only: tenant-scoped list (`q`, `role`, `status`) / create `citizen, admin, staff,` or `maintenance` account: `full_name, email, phone?, role, team_id?, temporary_password` |
 | PATCH | `/api/admin/users/:id` | `full_name, phone, role, team_id, is_active` (cannot remove own admin access or the last admin) |
 | POST | `/api/admin/users/:id/reset-password` | `temporary_password` |
 | GET/POST/PATCH | `/api/admin/teams[/:id]` | `name, agency_id?, description?, is_active?` |
