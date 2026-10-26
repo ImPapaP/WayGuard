@@ -26,7 +26,7 @@ const createLguSchema = z.object({
 platformRoutes.get('/lgus', platformAdmin, async (ctx) => {
   const rows = await sql`
     SELECT l.id, l.name, l.slug, l.city, l.province, l.is_active, l.created_at,
-      (SELECT count(*)::int FROM users u WHERE u.lgu_id = l.id AND u.role IN ('admin', 'maintenance') AND u.is_active) AS staff_count,
+      (SELECT count(*)::int FROM users u WHERE u.lgu_id = l.id AND u.role IN ('admin', 'staff', 'maintenance') AND u.is_active) AS staff_count,
       (SELECT count(*)::int FROM reports r WHERE r.lgu_id = l.id) AS report_count,
       (SELECT u.full_name FROM users u WHERE u.lgu_id = l.id AND u.role = 'admin' ORDER BY u.created_at, u.id LIMIT 1) AS administrator_name
     FROM lgus l
@@ -38,7 +38,6 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
   const body = await readJson(ctx, createLguSchema);
   const slug = body.slug || body.name
     .normalize('NFKD')
-    .replace(/[\\u0300-\\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
