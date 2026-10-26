@@ -46,7 +46,7 @@ export const JURISDICTIONS = {
   other: 'Other',
 };
 
-export const ROLES = { citizen: 'Citizen', admin: 'LGU administrator', maintenance: 'Maintenance personnel' };
+export const ROLES = { citizen: 'Citizen', admin: 'LGU administrator', staff: 'LGU staff', maintenance: 'Maintenance personnel' };
 
 const dateFmt = new Intl.DateTimeFormat('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 const dateTimeFmt = new Intl.DateTimeFormat('en-PH', {
