@@ -22,8 +22,8 @@ function validBoundary(value) {
     polygon.every((ring) => Array.isArray(ring) && ring.length >= 4 &&
       ring.every((point) => Array.isArray(point) && point.length >= 2 &&
         Number.isFinite(point[0]) && Number.isFinite(point[1]) &&
-        point[0] >= -180 && point[0] <= 180 && point[1] >= -90 && point[1] <= 90)) &&
-      JSON.stringify(polygon[0]) === JSON.stringify(polygon[polygon.length - 1]));
+        point[0] >= -180 && point[0] <= 180 && point[1] >= -90 && point[1] <= 90) &&
+      JSON.stringify(ring[0]) === JSON.stringify(ring[ring.length - 1])));
 }
 
 
