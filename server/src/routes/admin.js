@@ -426,7 +426,7 @@ const agencySchema = z.object({
 
 adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
   const rows = await sql`
-    SELECT t.id, t.name, t.description, t.is_active, t.agency_id, ag.name AS agency_name, t.created_at,
+    SELECT t.id, t.lgu_id, l.name AS lgu_name, t.name, t.description, t.is_active, t.agency_id, ag.name AS agency_name, t.created_at,
            (SELECT count(*)::int FROM users u WHERE u.team_id = t.id AND u.is_active) AS member_count,
            (SELECT count(*)::int FROM assignments a WHERE a.team_id = t.id AND a.is_active) AS active_tasks
     FROM maintenance_teams t LEFT JOIN agencies ag ON ag.id = t.agency_id AND ag.lgu_id = t.lgu_id
