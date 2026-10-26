@@ -13,6 +13,7 @@ publicRoutes.get('/config', async (ctx) => {
   const s = await getSettings();
   ctx.json(200, {
     lgu_name: s.lgu_name,
+    lgus: await sql`SELECT id, name, slug, city, province FROM lgus WHERE is_active ORDER BY name`,
     map_center: s.map_center,
     max_photos_per_report: s.max_photos_per_report,
     max_photo_mb: Math.round(config.maxPhotoBytes / 1048576),
