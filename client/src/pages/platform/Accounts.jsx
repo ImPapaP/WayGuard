@@ -34,6 +34,7 @@ export default function Accounts() {
   const [roleDrafts, setRoleDrafts] = useState({});
   const [statusDrafts, setStatusDrafts] = useState({});
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
+  const [areaPickers, setAreaPickers] = useState({});
   const [busyId, setBusyId] = useState(null);
   const [historyId, setHistoryId] = useState(null);
   const [historyItems, setHistoryItems] = useState([]);
@@ -45,7 +46,58 @@ export default function Accounts() {
       [account.full_name, account.email, account.lgu_name, roleLabel(account.role)]
         .some((value) => String(value || '').toLowerCase().includes(needle)));
   }, [data, search]);
-  const jurisdictions = (lguData?.items || []).filter((lgu) => lgu.is_active);
+  const allJurisdictions = lguData?.items || [];
+  const jurisdictions = allJurisdictions.filter((lgu) => lgu.is_active && lgu.is_directory_node);
+  const jurisdictionById = useMemo(() => new Map(allJurisdictions.map((lgu) => [Number(lgu.id), lgu])), [allJurisdictions]);
+  const emptyAreaPicker = { islandGroup: '', region: '', branch: '', locality: '' };
+
+  function childrenFor(parentId, allowedLevels) {
+    return jurisdictions
+      .filter((lgu) => {
+        const actualParent = lgu.parent_lgu_id == null ? null : Number(lgu.parent_lgu_id);
+        const expectedParent = parentId === '' || parentId === null || parentId === undefined ? null : Number(parentId);
+        return actualParent === expectedParent && allowedLevels.includes(lgu.jurisdiction_level);
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((lgu) => ({
+        value: String(lgu.id),
+        label: lgu.name + (lgu.psgc_code ? ' · ' + lgu.psgc_code : ''),
+      }));
+  }
+
+  function currentAreaPicker(accountId) {
+    return areaPickers[accountId] || emptyAreaPicker;
+  }
+
+  function changeAreaPicker(accountId, key, value) {
+    setAreaPickers((previous) => ({
+      ...previous,
+      [accountId]: {
+        ...(previous[accountId] || emptyAreaPicker),
+        [key]: value,
+        ...(key === 'islandGroup' ? { region: '', branch: '', locality: '' } : {}),
+        ...(key === 'region' ? { branch: '', locality: '' } : {}),
+        ...(key === 'branch' ? { locality: '' } : {}),
+      },
+    }));
+  }
+
+  function selectedAreaId(accountId) {
+    const selected = currentAreaPicker(accountId);
+    return selected.locality || selected.branch || selected.region || selected.islandGroup || '';
+  }
+
+  function areaPath(id) {
+    const labels = [];
+    const seen = new Set();
+    let current = jurisdictionById.get(Number(id));
+    while (current && !seen.has(Number(current.id))) {
+      seen.add(Number(current.id));
+      labels.unshift(current.name);
+      current = current.parent_lgu_id == null ? null : jurisdictionById.get(Number(current.parent_lgu_id));
+    }
+    return labels.join(' / ') || 'Jurisdiction #' + id;
+  }
 
   function currentRole(account) {
     return roleDrafts[account.id] ?? account.role;
@@ -178,14 +230,66 @@ export default function Accounts() {
                       <section style={{ marginTop: 14 }}>
                         <h4 style={{ margin: '0 0 8px' }}>Assigned jurisdictions</h4>
                         <p className="muted small">Select all jurisdiction nodes this administrator should oversee. Assigning a region or province includes its descendants.</p>
-                        {lguError ? <Alert type="error">{lguError.message}</Alert> : !jurisdictions.length ? <p className="muted small">Create an active jurisdiction in the LGU directory first.</p> : (
-                          <div className="form-row form-row--2" style={{ gap: 8 }}>
-                            {jurisdictions.map((lgu) => (
-                              <label key={lgu.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)' }}>
-                                <input type="checkbox" checked={assignedIds.includes(Number(lgu.id))} onChange={(event) => updateAssignments(account.id, Number(lgu.id), event.target.checked)} />
-                                <span><strong>{lgu.name}</strong><br /><span className="muted small">{(lgu.jurisdiction_level || 'municipality').replaceAll('_', ' ')} · {[lgu.city, lgu.province].filter(Boolean).join(', ')}</span></span>
-                              </label>
-                            ))}
+                        {lguError ? <Alert type="error">{lguError.message}</Alert> : !jurisdictions.length ? <p className="muted small">The official PSGC directory has not been synchronized yet. Open the LGU directory after deployment and check the directory status.</p> : (
+                          <div style={{ display: 'grid', gap: 12 }}>
+                            <div className="form-row form-row--2" style={{ gap: 10 }}>
+                              <SelectField
+                                label="1. Island group"
+                                value={currentAreaPicker(account.id).islandGroup}
+                                onChange={(event) => changeAreaPicker(account.id, 'islandGroup', event.target.value)}
+                                options={[{ value: '', label: 'Choose island group…' }, ...childrenFor(null, ['island_group'])]}
+                              />
+                              <SelectField
+                                label="2. Region"
+                                value={currentAreaPicker(account.id).region}
+                                onChange={(event) => changeAreaPicker(account.id, 'region', event.target.value)}
+                                options={[{ value: '', label: 'Choose region…' }, ...childrenFor(currentAreaPicker(account.id).islandGroup, ['region'])]}
+                              />
+                              <SelectField
+                                label="3. Province / independent city / special area"
+                                value={currentAreaPicker(account.id).branch}
+                                onChange={(event) => changeAreaPicker(account.id, 'branch', event.target.value)}
+                                options={[{ value: '', label: 'Choose an area…' }, ...childrenFor(currentAreaPicker(account.id).region, ['province', 'independent_city', 'special_area', 'city', 'municipality'])]}
+                              />
+                              <SelectField
+                                label="4. Component city / municipality"
+                                value={currentAreaPicker(account.id).locality}
+                                onChange={(event) => changeAreaPicker(account.id, 'locality', event.target.value)}
+                                options={[{ value: '', label: 'Optional — choose a locality…' }, ...childrenFor(currentAreaPicker(account.id).branch, ['city', 'municipality'])]}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                              <Button
+                                size="sm"
+                                variant="navy"
+                                disabled={!selectedAreaId(account.id) || assignedIds.includes(Number(selectedAreaId(account.id)))}
+                                onClick={() => updateAssignments(account.id, Number(selectedAreaId(account.id)), true)}
+                              >Add selected area</Button>
+                              <span className="muted small">Choose any level. Access includes all descendant areas automatically.</span>
+                            </div>
+                            <div>
+                              <p className="field__label">Assigned access areas ({assignedIds.length})</p>
+                              {assignedIds.length ? (
+                                <div style={{ display: 'grid', gap: 8 }}>
+                                  {assignedIds.map((id) => (
+                                    <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)' }}>
+                                      <div style={{ minWidth: 0 }}>
+                                        <strong>{jurisdictionById.get(Number(id))?.name || 'Jurisdiction #' + id}</strong>
+                                        <p className="muted small" style={{ margin: '3px 0 0', overflowWrap: 'anywhere' }}>{areaPath(id)}</p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        disabled={assignedIds.length <= 1}
+                                        onClick={() => updateAssignments(account.id, Number(id), false)}
+                                      >Remove</Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="muted small">No area selected yet. Add at least one area before saving administrator access.</p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </section>
