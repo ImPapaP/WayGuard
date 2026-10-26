@@ -27,9 +27,9 @@ async function main() {
   const password = passwordSchema.parse(rawPassword);
   const sql = getSql();
 
-  const [existing] = await sql\`
-    SELECT id, role FROM users WHERE lower(email) = \${email} LIMIT 1
-  \`;
+  const [existing] = await sql`
+    SELECT id, role FROM users WHERE lower(email) = ${email} LIMIT 1
+  `;
   if (existing) {
     if (existing.role === 'platform_admin') {
       console.log('The configured platform administrator already exists; no account changes were made.');
@@ -40,16 +40,16 @@ async function main() {
 
   const passwordHash = await hashPassword(password);
   const user = await sql.begin(async (tx) => {
-    const [created] = await tx\`
+    const [created] = await tx`
       INSERT INTO users (email, password_hash, full_name, role, lgu_id, is_active, must_change_password)
-      VALUES (\${email}, \${passwordHash}, \${fullName}, 'platform_admin', NULL, TRUE, TRUE)
+      VALUES (${email}, ${passwordHash}, ${fullName}, 'platform_admin', NULL, TRUE, TRUE)
       RETURNING id, email
-    \`;
-    await tx\`
+    `;
+    await tx`
       INSERT INTO audit_logs (lgu_id, actor_id, action, target_type, target_id, details)
-      VALUES (NULL, \${created.id}, 'platform_admin.create_env_bootstrap', 'user', \${String(created.id)},
-        \${tx.json({ email: created.email, bootstrap: 'environment' })})
-    \`;
+      VALUES (NULL, ${created.id}, 'platform_admin.create_env_bootstrap', 'user', ${String(created.id)},
+        ${tx.json({ email: created.email, bootstrap: 'environment' })})
+    `;
     return created;
   });
 
