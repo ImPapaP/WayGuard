@@ -15,7 +15,7 @@ geoRoutes.get('/search', requireAuth(), async (ctx) => {
   const q = String(ctx.query.q || '').trim();
   if (q.length < 3) throw badRequest('Type at least 3 characters to search.');
   // Bias results to roughly 25 km around the LGU's map centre.
-  const { map_center: c } = await getSettings();
+  const { map_center: c } = await getSettings(undefined, ctx.user.lgu_id);
   const viewbox = [c.lng - 0.25, c.lat + 0.25, c.lng + 0.25, c.lat - 0.25].map((n) => n.toFixed(4)).join(',');
   ctx.json(200, { items: await searchAddress(q, { viewbox }) });
 });
