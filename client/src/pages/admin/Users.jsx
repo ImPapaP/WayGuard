@@ -20,13 +20,13 @@ function tempPassword() {
 
 const ROLE_OPTIONS = Object.entries(ROLES).map(([value, label]) => ({ value, label }));
 
-function UserModal({ user, teams, onClose, onSaved }) {
+function UserModal({ user, teams, jurisdictions, onClose, onSaved }) {
   const toast = useToast();
   const isNew = !user;
   const [form, setForm] = useState(
     isNew
-      ? { full_name: '', email: '', phone: '', role: 'maintenance', team_id: '', temporary_password: tempPassword() }
-      : { full_name: user.full_name, phone: user.phone || '', role: user.role, team_id: user.team_id ? String(user.team_id) : '', is_active: user.is_active },
+      ? { full_name: '', email: '', phone: '', role: 'maintenance', lgu_id: '', team_id: '', temporary_password: tempPassword() }
+      : { full_name: user.full_name, phone: user.phone || '', role: user.role, lgu_id: user.lgu_id ? String(user.lgu_id) : '', team_id: user.team_id ? String(user.team_id) : '', is_active: user.is_active },
   );
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -39,6 +39,8 @@ function UserModal({ user, teams, onClose, onSaved }) {
       phone: form.phone || null,
       team_id: form.role === 'maintenance' && form.team_id ? Number(form.team_id) : null,
     };
+    if (isNew) body.lgu_id = form.lgu_id ? Number(form.lgu_id) : undefined;
+    else delete body.lgu_id;
     try {
       if (isNew) await api.post('/api/admin/users', body);
       else await api.patch(`/api/admin/users/${user.id}`, body);
@@ -69,6 +71,7 @@ function UserModal({ user, teams, onClose, onSaved }) {
         <TextField label="Full name" value={form.full_name} onChange={set('full_name')} error={f.full_name} />
         {isNew && <TextField label="E-mail" type="email" value={form.email} onChange={set('email')} error={f.email} />}
         <TextField label="Phone" optional type="tel" value={form.phone} onChange={set('phone')} error={f.phone} />
+        {isNew && jurisdictions.length > 1 && <SelectField label="Jurisdiction" value={form.lgu_id} onChange={set('lgu_id')} placeholder="Use my primary LGU" optional options={jurisdictions.map((lgu) => ({ value: String(lgu.id), label: `${lgu.name} — ${(lgu.jurisdiction_level || 'municipality').replaceAll('_', ' ')}` }))} />}
         <div className="form-row form-row--2">
           <SelectField label="Role" value={form.role} onChange={set('role')} options={ROLE_OPTIONS} error={f.role} />
           {form.role === 'maintenance' && (
@@ -154,6 +157,7 @@ export default function Users() {
   const [modal, setModal] = useState(null);
   const { data, error, loading, reload } = useApi(`/api/admin/users${qs({ q, role: query.role, status: query.status, page: query.page })}`);
   const { data: teams } = useApi('/api/admin/teams');
+  const { data: jurisdictions } = useApi('/api/admin/jurisdictions');
 
   return (
     <div className="container page">
@@ -162,7 +166,7 @@ export default function Users() {
           <h1>Users</h1>
           <p>Citizens register themselves. Create accounts for LGU administrators and maintenance personnel here.</p>
         </div>
-        <Button variant="primary" onClick={() => setModal({ type: 'new' })} disabled={!teams}>
+        <Button variant="primary" onClick={() => setModal({ type: 'new' })} disabled={!teams || !jurisdictions}>
           <LuUserPlus aria-hidden /> Add staff account
         </Button>
       </div>
@@ -254,8 +258,8 @@ export default function Users() {
           </>
         )}
       </div>
-      {modal?.type === 'new' && <UserModal teams={teams.items} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
-      {modal?.type === 'edit' && teams && <UserModal user={modal.user} teams={teams.items} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {modal?.type === 'new' && teams && jurisdictions && <UserModal teams={teams.items} jurisdictions={jurisdictions.items} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {modal?.type === 'edit' && teams && jurisdictions && <UserModal user={modal.user} teams={teams.items} jurisdictions={jurisdictions.items} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
       {modal?.type === 'reset' && <ResetModal user={modal.user} onClose={() => setModal(null)} />}
     </div>
   );
