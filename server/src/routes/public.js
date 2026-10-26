@@ -10,7 +10,8 @@ import { publicShape, PUBLIC_STATUSES } from '../services/reports.js';
 export const publicRoutes = new Router('/api/public');
 
 publicRoutes.get('/config', async (ctx) => {
-  const s = await getSettings();
+  const lguId = ctx.user?.role === 'platform_admin' ? 1 : (ctx.user?.lgu_id || 1);
+  const s = await getSettings(sql, lguId);
   ctx.json(200, {
     lgu_name: s.lgu_name,
     lgus: await sql`SELECT id, name, slug, city, province FROM lgus WHERE is_active ORDER BY name`,
