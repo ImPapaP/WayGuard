@@ -1,0 +1,20 @@
+{
+  "name": "wayguard-crew-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wayguard for road crews and responders: assigned repairs on a map, directions, progress and before/after photos.",
+  "scripts": {
+    "add:android": "cap add android",
+    "assets": "capacitor-assets generate --android --iconBackgroundColor '#061429' --splashBackgroundColor '#061429'",
+    "sync": "cap sync android",
+    "build:apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  }
+}

@@ -1,0 +1,100 @@
+# Builds the two installable Android apps (debug-signed APKs):
+#   mobile/citizen-app  -> wayguard-citizen-app.apk  ("Wayguard", residents)
+#   mobile/crew-app     -> wayguard-crew-app.apk     ("Wayguard Crew", road crews / responders)
+# Each app opens the live Wayguard site (see capacitor.config.json) inside a
+# native Android shell with location and camera permissions.
+# The APKs and the generated Android Studio projects are published to the
+# `apk-builds` branch and attached to the workflow run as artifacts.
+name: Build Android APKs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [citizen-app, crew-app]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Capacitor
+        working-directory: mobile/${{ matrix.app }}
+        run: npm install --no-audit --no-fund
+
+      - name: Create the Android project
+        working-directory: mobile/${{ matrix.app }}
+        run: |
+          npx cap add android
+          npx capacitor-assets generate --android --iconBackgroundColor '#061429' --iconBackgroundColorDark '#061429' --splashBackgroundColor '#061429' --splashBackgroundColorDark '#061429' || echo "Icon generation failed; default icon kept."
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n</manifest>#' "$MANIFEST"
+          grep -n "permission" "$MANIFEST"
+          npx cap sync android
+
+      - name: Build the APK
+        working-directory: mobile/${{ matrix.app }}/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect the APK and the Android project
+        run: |
+          mkdir -p out
+          cp mobile/${{ matrix.app }}/android/app/build/outputs/apk/debug/app-debug.apk out/wayguard-${{ matrix.app }}.apk
+          cd mobile/${{ matrix.app }}
+          zip -qr ../../out/wayguard-${{ matrix.app }}-android-project.zip android \
+            -x 'android/.gradle/*' 'android/build/*' 'android/app/build/*' 'android/capacitor-cordova-android-plugins/build/*'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}
+          path: out/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+
+      - name: Publish to the apk-builds branch
+        run: |
+          mkdir site
+          cp dl/*/* site/
+          cd site
+          {
+            echo "Wayguard Android builds"
+            echo "Source commit: ${GITHUB_SHA}"
+            echo "Built: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            sha256sum *.apk
+          } > BUILD.txt
+          git init -q -b apk-builds
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -qm "Android APKs from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" apk-builds

@@ -1,0 +1,15 @@
+{
+  "appId": "ph.wayguard.citizen",
+  "appName": "Wayguard",
+  "webDir": "www",
+  "server": {
+    "url": "https://wayguard-i2oz.onrender.com/app",
+    "cleartext": false,
+    "allowNavigation": ["wayguard-i2oz.onrender.com"],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "backgroundColor": "#061429",
+    "allowMixedContent": false
+  }
+}
