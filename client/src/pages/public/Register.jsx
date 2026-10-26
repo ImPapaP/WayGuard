@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LuEye, LuEyeOff } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { useDocumentTitle } from '../../lib/hooks.js';
 import { AuthLayout } from '../../components/Shells.jsx';
-import { Button, TextField, Alert } from '../../components/ui.jsx';
+import { Button, TextField, SelectField, Alert } from '../../components/ui.jsx';
 import { safeNext } from './Login.jsx';
 
 function validate(f) {
@@ -14,21 +14,28 @@ function validate(f) {
   if (f.phone && !/^\+?[0-9 ()-]{7,20}$/.test(f.phone.trim())) e.phone = 'Enter a valid phone number, or leave it blank.';
   if (f.password.length < 8) e.password = 'Use at least 8 characters.';
   else if (!/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) e.password = 'Include at least one letter and one number.';
+  if (!f.lgu_id) e.lgu_id = 'Choose your city or municipality.';
   if (f.confirm !== f.password) e.confirm = 'The passwords do not match.';
   return e;
 }
 
 export default function Register() {
   useDocumentTitle('Create an account');
-  const { user, register } = useAuth();
+  const { user, register, config } = useAuth();
   const { query } = useLocation();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm: '', lgu_id: '' });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!form.lgu_id && config?.lgus?.length) {
+      setForm((current) => ({ ...current, lgu_id: String(config.lgus[0].id) }));
+    }
+  }, [config, form.lgu_id]);
 
   if (user) return <Navigate to={safeNext(query.next, user.role)} />;
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -46,6 +53,7 @@ export default function Register() {
         email: form.email.trim(),
         phone: form.phone.trim() || null,
         password: form.password,
+        lgu_id: Number(form.lgu_id),
       });
       navigate(query.next && query.next.startsWith('/app') ? query.next : '/app/report', { replace: true });
     } catch (err) {
@@ -71,6 +79,17 @@ export default function Register() {
           value={form.email}
           onChange={set('email')}
           error={errors.email}
+        />
+        <SelectField
+          label="City / municipality (LGU)"
+          value={form.lgu_id}
+          onChange={set('lgu_id')}
+          placeholder="Choose your local government"
+          options={(config?.lgus || []).map((lgu) => ({
+            value: String(lgu.id),
+            label: [lgu.name, lgu.city && lgu.city !== lgu.name ? lgu.city : null, lgu.province].filter(Boolean).join(' — '),
+          }))}
+          error={errors.lgu_id}
         />
         <TextField
           label="Mobile number"
