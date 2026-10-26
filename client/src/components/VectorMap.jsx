@@ -27,6 +27,29 @@ function circlePolygon(lat, lng, radiusM, steps = 64) {
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
 }
 
+
+function addJurisdictionLayers(map, boundary) {
+  if (!boundary) return;
+  const geometry = boundary.type === 'Feature' ? boundary.geometry : boundary;
+  if (!geometry || !['Polygon', 'MultiPolygon'].includes(geometry.type)) return;
+  const feature = boundary.type === 'Feature' ? boundary : { type: 'Feature', properties: {}, geometry };
+  if (!map.getSource('wg-jurisdiction')) {
+    map.addSource('wg-jurisdiction', { type: 'geojson', data: feature });
+  }
+  if (!map.getLayer('wg-jurisdiction-fill')) {
+    map.addLayer({
+      id: 'wg-jurisdiction-fill', type: 'fill', source: 'wg-jurisdiction',
+      paint: { 'fill-color': '#FAAE0B', 'fill-opacity': 0.07 },
+    });
+  }
+  if (!map.getLayer('wg-jurisdiction-line')) {
+    map.addLayer({
+      id: 'wg-jurisdiction-line', type: 'line', source: 'wg-jurisdiction',
+      paint: { 'line-color': '#FAAE0B', 'line-width': 3, 'line-opacity': 0.98 },
+    });
+  }
+}
+
 function el(className, html) {
   const div = document.createElement('div');
   div.className = className;
@@ -116,6 +139,8 @@ export default function VectorMap({
     m.on('rotatestart', (e) => {
       if (e.originalEvent) handlers.current.onUserMove?.();
     });
+    const drawJurisdiction = () => addJurisdictionLayers(m, settings.jurisdiction_boundary);
+    m.on('style.load', drawJurisdiction);
     m.on('load', () => {
       loaded = true;
       clearTimeout(timer);
