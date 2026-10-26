@@ -1,10 +1,10 @@
 // Platform-level LGU provisioning. Only platform administrators can create
 // LGU tenants; each tenant is created together with its first LGU administrator.
 import { z } from 'zod';
-import { Router, readJson, parseId, notFound, conflict, badRequest } from '../lib/http.js';
+import { Router, readJson, notFound, conflict, badRequest } from '../lib/http.js';
 import { sql } from '../db/index.js';
 import { requireRole } from '../middleware/auth.js';
-import { text, email, password, phone } from '../lib/validation.js';
+import { text, email, password, phone, parseId } from '../lib/validation.js';
 import { hashPassword } from '../lib/security.js';
 import { audit } from '../services/audit.js';
 import { DEFAULT_SETTINGS } from '../services/settings.js';
