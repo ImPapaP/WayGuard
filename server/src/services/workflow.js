@@ -20,14 +20,14 @@ import { recordEvent, loadReportRow, teamHasAssignment } from './reports.js';
 
 // Allowed status transitions and the roles that may perform each one.
 export const TRANSITIONS = {
-  submitted: { under_review: ['admin'], rejected: ['admin'], duplicate: ['admin'] },
-  under_review: { verified: ['admin'], rejected: ['admin'], duplicate: ['admin'] },
-  verified: { assigned: ['admin'], rejected: ['admin'], duplicate: ['admin'], under_review: ['admin'] },
-  assigned: { in_progress: ['maintenance', 'admin'], verified: ['admin'] },
-  in_progress: { resolved: ['admin'] },
+  submitted: { under_review: ['admin', 'staff'], rejected: ['admin', 'staff'], duplicate: ['admin', 'staff'] },
+  under_review: { verified: ['admin', 'staff'], rejected: ['admin', 'staff'], duplicate: ['admin', 'staff'] },
+  verified: { assigned: ['admin', 'staff'], rejected: ['admin', 'staff'], duplicate: ['admin', 'staff'], under_review: ['admin', 'staff'] },
+  assigned: { in_progress: ['maintenance', 'admin'], verified: ['admin', 'staff'] },
+  in_progress: { resolved: ['admin', 'staff'] },
   resolved: {},
-  rejected: { under_review: ['admin'] },
-  duplicate: { under_review: ['admin'] },
+  rejected: { under_review: ['admin', 'staff'] },
+  duplicate: { under_review: ['admin', 'staff'] },
 };
 
 export function canTransition(from, to, role) {
@@ -278,7 +278,7 @@ export function approveCompletion(reportId, user, { note }) {
 
 export function returnCompletion(reportId, user, { reason }) {
   return withReport(reportId, async (tx, report) => {
-    if (user.role !== 'admin') throw forbidden();
+    if (!['admin', 'staff'].includes(user.role)) throw forbidden();
     if (report.status !== 'in_progress' || !report.work_completed_at) {
       throw new HttpError(409, 'There is no completed repair waiting for verification.', undefined, 'not_completed');
     }
