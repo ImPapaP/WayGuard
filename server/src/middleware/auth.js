@@ -3,7 +3,7 @@
 // protection.
 import { HttpError, unauthorized, forbidden } from '../lib/http.js';
 
-export const ROLES = ['citizen', 'admin', 'maintenance'];
+export const ROLES = ['citizen', 'admin', 'maintenance', 'platform_admin'];
 
 // Routes that remain reachable while a user must change a temporary password.
 const PASSWORD_CHANGE_ALLOWED = new Set(['/api/auth/me', '/api/auth/logout', '/api/auth/change-password']);
