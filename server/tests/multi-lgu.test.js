@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test';
-import { syncPsgcDirectory } from '../scripts/sync-psgc-directory.js';
 import assert from 'node:assert/strict';
+// helpers.js must load first: it switches to test mode (TEST_DATABASE_URL)
+// before anything reads the configuration.
 import {
   resetDatabase,
   startServer,
@@ -10,6 +11,7 @@ import {
   submitReport,
   getSql,
 } from './helpers.js';
+import { syncPsgcDirectory } from '../scripts/sync-psgc-directory.js';
 
 let server;
 let platform;
