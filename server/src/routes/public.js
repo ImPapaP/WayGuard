@@ -14,7 +14,7 @@ publicRoutes.get('/config', async (ctx) => {
   const s = await getSettings(sql, lguId);
   ctx.json(200, {
     lgu_name: s.lgu_name,
-    lgus: await sql`SELECT id, name, slug, city, province FROM lgus WHERE is_active ORDER BY name`,
+    lgus: await sql`SELECT id, name, slug, city, province FROM lgus WHERE is_active AND ((is_directory_node AND jurisdiction_level IN ('independent_city', 'city', 'municipality')) OR (NOT is_directory_node AND city IS NOT NULL)) ORDER BY name, province`,
     jurisdiction_boundary: ctx.user?.lgu_id ? (await sql`SELECT jurisdiction_boundary FROM lgus WHERE id = ${ctx.user.lgu_id}`)[0]?.jurisdiction_boundary ?? null : null,
     map_center: s.map_center,
     max_photos_per_report: s.max_photos_per_report,
