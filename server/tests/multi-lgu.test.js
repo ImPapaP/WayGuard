@@ -29,11 +29,35 @@ test('platform admins provision an LGU and its first administrator', async () =>
   const blocked = await defaultAdmin.get('/api/platform/lgus');
   assert.equal(blocked.status, 403, 'an LGU admin cannot manage platform tenants');
 
+  const island = await platform.post('/api/platform/lgus', {
+    name: 'Luzon Test Group', slug: 'luzon-test-group', city: null, province: null,
+    jurisdiction_level: 'island_group', parent_lgu_id: null,
+    admin_name: 'Island Administrator', admin_email: 'island.admin@example.test',
+    admin_phone: null, temporary_password: 'StartAdmin123',
+  });
+  assert.equal(island.status, 201, JSON.stringify(island.data));
+  const region = await platform.post('/api/platform/lgus', {
+    name: 'Central Luzon Test Region', slug: 'central-luzon-test-region', city: null, province: null,
+    jurisdiction_level: 'region', parent_lgu_id: island.data.lgu.id,
+    admin_name: 'Regional Administrator', admin_email: 'region.admin@example.test',
+    admin_phone: null, temporary_password: 'StartAdmin123',
+  });
+  assert.equal(region.status, 201, JSON.stringify(region.data));
+  const province = await platform.post('/api/platform/lgus', {
+    name: 'Bulacan Test Province', slug: 'bulacan-test-province', city: null, province: null,
+    jurisdiction_level: 'province', parent_lgu_id: region.data.lgu.id,
+    admin_name: 'Provincial Administrator', admin_email: 'province.admin@example.test',
+    admin_phone: null, temporary_password: 'StartAdmin123',
+  });
+  assert.equal(province.status, 201, JSON.stringify(province.data));
+
   const response = await platform.post('/api/platform/lgus', {
     name: 'City of Meycauayan',
     slug: 'meycauayan',
     city: 'Meycauayan',
     province: 'Bulacan',
+    jurisdiction_level: 'city',
+    parent_lgu_id: province.data.lgu.id,
     map_latitude: 14.7367,
     map_longitude: 120.9607,
     admin_name: 'Meycauayan Administrator',
@@ -54,7 +78,6 @@ test('platform admins provision an LGU and its first administrator', async () =>
   assert.equal(createdAdmin.lgu_id, response.data.lgu.id);
   assert.equal(createdAdmin.must_change_password, true);
 });
-
 test('admin report lists and private report details are isolated by LGU', async () => {
   const [lgu] = await getSql()`SELECT id FROM lgus WHERE slug = 'meycauayan'`;
   assert.ok(lgu, 'LGU created by the platform test exists');
@@ -126,9 +149,12 @@ test('regional administrator scopes reports, maps, exports, teams and users to a
     return result.data.lgu;
   }
 
-  const region = await createJurisdiction({ name: 'Central Test Region', slug: 'central-test-region', level: 'region', city: 'Central' });
-  const child = await createJurisdiction({ name: 'Test Municipality', slug: 'test-municipality', level: 'municipality', parentId: region.id, city: 'Test Municipality' });
-  const otherRegion = await createJurisdiction({ name: 'Other Test Region', slug: 'other-test-region', level: 'region', city: 'Other' });
+  const island = await createJurisdiction({ name: 'Jurisdiction Test Luzon', slug: 'jurisdiction-test-luzon', level: 'island_group', city: null });
+  const region = await createJurisdiction({ name: 'Central Test Region', slug: 'central-test-region', level: 'region', parentId: island.id, city: 'Central' });
+  const province = await createJurisdiction({ name: 'Central Test Province', slug: 'central-test-province', level: 'province', parentId: region.id, city: null });
+  const child = await createJurisdiction({ name: 'Test Municipality', slug: 'test-municipality', level: 'municipality', parentId: province.id, city: 'Test Municipality' });
+  const otherIsland = await createJurisdiction({ name: 'Jurisdiction Test Visayas', slug: 'jurisdiction-test-visayas', level: 'island_group', city: null });
+  const otherRegion = await createJurisdiction({ name: 'Other Test Region', slug: 'other-test-region', level: 'region', parentId: otherIsland.id, city: 'Other' });
 
   const regionalUser = await createUser({ role: 'admin', lguId: region.id, name: 'Regional Scope Admin' });
   const staleSession = await login(server.base, regionalUser);
