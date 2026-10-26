@@ -34,7 +34,7 @@ const PREVIEW_ACCOUNTS = [
 
 export default function Login() {
   useDocumentTitle('Sign in');
-  const { user, setUser } = useAuth();
+  const { user, setUser, refreshConfig } = useAuth();
   const { query } = useLocation();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
@@ -57,6 +57,7 @@ export default function Login() {
       // The server recognises the account type; show it briefly, then hand
       // the signed-in user to the app and open the right workspace.
       const { user: u } = await api.post('/api/auth/login', { email: form.email.trim(), password: form.password });
+      await refreshConfig();
       setWelcome(u);
       setTimeout(() => {
         setUser(u);
