@@ -909,27 +909,39 @@
   inset: 0;
   z-index: 1600;
   background: rgba(6, 20, 41, 0.92);
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--white);
 }
 .lightbox__bar {
   display: flex;
+  flex: 0 0 auto;
   justify-content: space-between;
   align-items: center;
   padding: var(--s3) var(--s4);
 }
 .lightbox__img {
   display: grid;
+  flex: 1 0 auto;
   place-items: center;
-  padding: 0 var(--s4);
+  padding: var(--s2) var(--s4);
   min-height: 0;
 }
 .lightbox__img img {
-  max-height: 100%;
+  display: block;
+  width: auto;
+  height: auto;
+  max-height: calc(100vh - 150px);
   max-width: 100%;
   object-fit: contain;
   border-radius: var(--r-md);
+}
+@media (max-height: 520px) {
+  .lightbox__img img {
+    max-height: calc(100vh - 120px);
+  }
 }
 .lightbox .icon-btn {
   color: var(--white);
