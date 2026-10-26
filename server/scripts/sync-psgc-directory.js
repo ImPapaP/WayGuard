@@ -101,7 +101,6 @@ export async function syncPsgcDirectory({ db = getSql(), log = console.log } = {
         '  jurisdiction_level = d.level,',
         '  city = d.city,',
         '  province = d.province,',
-        '  parent_lgu_id = NULL,',
         '  updated_at = now()',
         'FROM jsonb_to_recordset($1::jsonb) AS d(id integer, code text, level text, city text, province text)',
         'WHERE l.id = d.id AND (l.psgc_code IS NULL OR l.psgc_code = d.code)'
