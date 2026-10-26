@@ -1,8 +1,8 @@
 # 3. Database
 
-PostgreSQL 14+ (tested with 16). Schema: `server/src/db/migrations/001_initial_schema.sql`,
-applied with `npm run db:migrate` (each file runs once in a transaction and
-is recorded in `schema_migrations`).
+PostgreSQL 14+ (tested with 16). The initial schema is `server/src/db/migrations/001_initial_schema.sql`; `002_multi_lgu.sql` adds multi-LGU tenancy. Migrations run with `npm run db:migrate` (each file runs once in a transaction and is recorded in `schema_migrations`). Existing records are attached to the first LGU created from the installation's current `lgu_name` setting.
+
+The `lgus` table stores a workspace for each city or municipality. LGU-owned users, agencies, maintenance teams, reports, assignments, settings and audit entries carry an `lgu_id`. Composite foreign keys prevent a team, assigned user, responsible agency, reporter or duplicate link from crossing LGU boundaries. `platform_admin` accounts are the only users without an `lgu_id`; they provision tenants, but do not receive ordinary LGU report-management access.
 
 ## 3.1 Entity–relationship diagram
 
@@ -41,8 +41,9 @@ erDiagram
 | password_hash | text | `scrypt$N$r$p$salt$hash` |
 | full_name | text | 2–100 chars |
 | phone | text, null | |
-| role | text | `citizen`, `admin`, `maintenance` |
-| team_id | int → maintenance_teams, null | only allowed for maintenance (CHECK) |
+| role | text | `citizen`, `admin`, `staff`, `maintenance`, `platform_admin` |
+| lgu_id | int → lgus, null only for `platform_admin` | Tenant boundary for every non-platform account |
+| team_id | int → maintenance_teams, null | only allowed for maintenance (CHECK); team must belong to the same LGU |
 | is_active | bool | deactivated users cannot sign in |
 | email_notifications | bool | user preference |
 | must_change_password | bool | set for admin-created/reset passwords |
