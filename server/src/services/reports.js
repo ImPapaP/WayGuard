@@ -130,9 +130,14 @@ export async function teamHasAssignment(db, reportId, teamId, { activeOnly = fal
 }
 
 export async function assertCanView(db, user, report) {
-  // Tenant scope is checked before role-specific access. A report ID from
-  // another LGU must never grant access to its details, notes or photos.
-  if (user.role !== 'platform_admin' && user.lgu_id !== report.lgu_id) throw notFound('Report not found.');
+  // Check the live server-resolved jurisdiction scope before role-specific
+  // access. An assigned parent jurisdiction may view descendants, but never
+  // an unrelated tenant's private data.
+  const allowed = user.role === 'platform_admin' ||
+    (Array.isArray(user.accessible_lgu_ids)
+      ? user.accessible_lgu_ids.includes(report.lgu_id)
+      : user.lgu_id === report.lgu_id);
+  if (!allowed) throw notFound('Report not found.');
   if (user.role === 'admin' || user.role === 'staff') return;
   if (user.role === 'citizen' && report.reporter_id === user.id) return;
   if (user.role === 'maintenance' && (await teamHasAssignment(db, report.id, user.team_id))) return;
@@ -194,7 +199,8 @@ export function publicShape(r) {
 export async function getReportDetail(db, id, user) {
   const r = await loadReportRow(db, id);
   await assertCanView(db, user, r);
-  const isAdmin = ['admin', 'staff'].includes(user.role) && user.lgu_id === r.lgu_id;
+  const isAdmin = ['admin', 'staff'].includes(user.role) &&
+    (Array.isArray(user.accessible_lgu_ids) ? user.accessible_lgu_ids.includes(r.lgu_id) : user.lgu_id === r.lgu_id);
   const isStaff = isAdmin || user.role === 'maintenance';
 
   const [agency] = r.agency_id
@@ -289,7 +295,8 @@ export async function getReportDetail(db, id, user) {
 // Admin list filters shared by the reports table, the map and exports.
 export function adminFilters(query, lguId = null) {
   const conds = [];
-  if (lguId !== null && lguId !== undefined) conds.push(sql`r.lgu_id = ${lguId}`);
+  if (Array.isArray(lguId)) conds.push(sql`r.lgu_id = ANY(${lguId})`);
+  else if (lguId !== null && lguId !== undefined) conds.push(sql`r.lgu_id = ${lguId}`);
   const list = (v, allowed) =>
     String(v || '')
       .split(',')
