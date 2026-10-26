@@ -35,6 +35,9 @@ export default function Accounts() {
   const [statusDrafts, setStatusDrafts] = useState({});
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
   const [areaPickers, setAreaPickers] = useState({});
+  const [newAdminForm, setNewAdminForm] = useState({ full_name: '', email: '', phone: '', temporary_password: '' });
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [createError, setCreateError] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [historyId, setHistoryId] = useState(null);
   const [historyItems, setHistoryItems] = useState([]);
@@ -142,6 +145,34 @@ export default function Accounts() {
     }
   }
 
+  async function createAreaAdmin(event) {
+    event.preventDefault();
+    setCreateError(null);
+    const lguId = selectedAreaId('new');
+    if (!lguId) {
+      setCreateError('Choose an area from the geographic hierarchy first.');
+      return;
+    }
+    setCreatingAdmin(true);
+    try {
+      const result = await api.post('/api/platform/accounts', {
+        ...newAdminForm,
+        full_name: newAdminForm.full_name.trim(),
+        email: newAdminForm.email.trim(),
+        phone: newAdminForm.phone.trim() || null,
+        lgu_id: Number(lguId),
+      });
+      toast('Administrator created for ' + result.jurisdiction.name + '. They must change the temporary password at first sign-in.');
+      setNewAdminForm({ full_name: '', email: '', phone: '', temporary_password: '' });
+      setAreaPickers((previous) => ({ ...previous, new: emptyAreaPicker }));
+      await reload();
+    } catch (err) {
+      setCreateError(err.message || 'Could not create the area administrator.');
+    } finally {
+      setCreatingAdmin(false);
+    }
+  }
+
   async function viewHistory(account) {
     if (historyId === account.id) {
       setHistoryId(null);
@@ -172,6 +203,61 @@ export default function Accounts() {
             </div>
           </div>
         </div>
+
+        <section className="panel" style={{ marginBottom: 20 }}>
+          <div className="panel__head">
+            <h2><LuShieldCheck aria-hidden /> Create an area administrator</h2>
+            <span className="badge">Platform management</span>
+          </div>
+          <p className="muted small">Create an administrator account directly for a specific node in the official Philippine geographic hierarchy. The administrator inherits access to that area and all its child jurisdictions. They will be required to replace the temporary password on first sign-in.</p>
+          <form className="form-stack" onSubmit={createAreaAdmin}>
+            {createError && <Alert type="error">{createError}</Alert>}
+            {!jurisdictions.length && !lguError && <Alert type="info">The official geographic directory is still loading or has not been synchronized yet.</Alert>}
+            <div className="form-row form-row--2" style={{ gap: 10 }}>
+              <SelectField
+                label="1. Island group"
+                value={currentAreaPicker('new').islandGroup}
+                onChange={(event) => changeAreaPicker('new', 'islandGroup', event.target.value)}
+                options={[{ value: '', label: 'Choose island group…' }, ...childrenFor(null, ['island_group'])]}
+              />
+              <SelectField
+                label="2. Region"
+                value={currentAreaPicker('new').region}
+                onChange={(event) => changeAreaPicker('new', 'region', event.target.value)}
+                options={[{ value: '', label: 'Choose region…' }, ...childrenFor(currentAreaPicker('new').islandGroup, ['region'])]}
+              />
+              <SelectField
+                label="3. Province / independent city"
+                value={currentAreaPicker('new').branch}
+                onChange={(event) => changeAreaPicker('new', 'branch', event.target.value)}
+                options={[{ value: '', label: 'Choose area…' }, ...childrenFor(currentAreaPicker('new').region, ['province', 'independent_city', 'special_area', 'city', 'municipality'])]}
+              />
+              <SelectField
+                label="4. Component city / municipality"
+                value={currentAreaPicker('new').locality}
+                onChange={(event) => changeAreaPicker('new', 'locality', event.target.value)}
+                options={[{ value: '', label: 'Optional — choose locality…' }, ...childrenFor(currentAreaPicker('new').branch, ['city', 'municipality'])]}
+              />
+            </div>
+            <div className="panel" style={{ padding: 12, background: 'var(--surface-sunken)' }}>
+              <strong>Selected area: </strong>
+              {selectedAreaId('new') ? (
+                <>{jurisdictionById.get(Number(selectedAreaId('new')))?.name || 'Selected jurisdiction'} <span className="muted small">— access covers all descendants</span></>
+              ) : <span className="muted small">Select any hierarchy level above.</span>}
+            </div>
+            <div className="form-row form-row--2" style={{ gap: 10 }}>
+              <TextField label="Full name" value={newAdminForm.full_name} onChange={(event) => setNewAdminForm((old) => ({ ...old, full_name: event.target.value }))} required />
+              <TextField label="Email address" type="email" value={newAdminForm.email} onChange={(event) => setNewAdminForm((old) => ({ ...old, email: event.target.value }))} required />
+              <TextField label="Phone (optional)" type="tel" value={newAdminForm.phone} onChange={(event) => setNewAdminForm((old) => ({ ...old, phone: event.target.value }))} />
+              <TextField label="Temporary password" type="password" value={newAdminForm.temporary_password} onChange={(event) => setNewAdminForm((old) => ({ ...old, temporary_password: event.target.value }))} hint="At least 8 characters, with a letter and a number." required />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button variant="navy" type="submit" loading={creatingAdmin} disabled={creatingAdmin || !selectedAreaId('new') || !jurisdictions.length}>
+                Create administrator for this area
+              </Button>
+            </div>
+          </form>
+        </section>
 
         <section className="panel" style={{ marginBottom: 20 }}>
           <div className="panel__head">
