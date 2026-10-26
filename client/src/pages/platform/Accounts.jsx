@@ -53,7 +53,7 @@ export default function Accounts() {
     return statusDrafts[account.id] ?? account.is_active;
   }
   function currentAssignments(account) {
-    return assignmentDrafts[account.id] ?? baseJurisdictions(account);
+    return assignmentDrafts[account.id] ?? (account.role === 'admin' ? baseJurisdictions(account) : (roleDrafts[account.id] === 'admin' && account.lgu_id ? [Number(account.lgu_id)] : []));
   }
   function updateAssignments(accountId, lguId, checked) {
     setAssignmentDrafts((previous) => {
