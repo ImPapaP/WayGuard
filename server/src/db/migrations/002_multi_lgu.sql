@@ -43,7 +43,7 @@ ALTER TABLE assignments ADD COLUMN lgu_id INT NOT NULL REFERENCES lgus(id) ON DE
 -- A platform administrator is the only role that is not attached to an LGU.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('citizen', 'admin', 'maintenance', 'platform_admin'));
+  CHECK (role IN ('citizen', 'admin', 'staff', 'maintenance', 'platform_admin'));
 ALTER TABLE users ADD CONSTRAINT users_lgu_presence_check
   CHECK (
     (role = 'platform_admin' AND lgu_id IS NULL)
