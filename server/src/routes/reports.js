@@ -243,7 +243,7 @@ reportRoutes.post('/:id/feedback', requireRole('citizen'), async (ctx) => {
   const id = parseId(ctx.params.id, 'report id');
   const body = await readJson(ctx, feedbackSchema);
   await sql.begin(async (tx) => {
-    const [r] = await tx`SELECT id, code, reporter_id, status FROM reports WHERE id = ${id} FOR UPDATE`;
+    const [r] = await tx`SELECT id, code, reporter_id, status, lgu_id FROM reports WHERE id = ${id} FOR UPDATE`;
     if (!r || r.reporter_id !== ctx.user.id) throw new HttpError(404, 'Report not found.', undefined, 'not_found');
     if (r.status !== 'resolved') throw conflict('Feedback can be given once the repair is resolved.');
     const [exists] = await tx`SELECT 1 FROM feedback WHERE report_id = ${id}`;
@@ -258,7 +258,7 @@ reportRoutes.post('/:id/feedback', requireRole('citizen'), async (ctx) => {
       meta: { rating: body.rating },
     });
     await notifyUsers(tx, {
-      userIds: await adminIds(tx),
+      userIds: await adminIds(tx, r.lgu_id),
       reportId: id,
       type: 'feedback_received',
       title: `${r.code}: feedback ${body.rating}/5`,
