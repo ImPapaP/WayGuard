@@ -30,13 +30,13 @@ after(() => shutdown(server));
 test('official PSGC directory sync creates the full hierarchy and is repeatable', async () => {
   const sql = getSql();
   const [counts] = await sql`
-    SELECT count(*) FILTER (WHERE jurisdiction_level = 'island_group')::int AS island_groups,
-           count(*) FILTER (WHERE jurisdiction_level = 'region')::int AS regions,
-           count(*) FILTER (WHERE jurisdiction_level = 'province')::int AS provinces,
-           count(*) FILTER (WHERE jurisdiction_level = 'independent_city')::int AS independent_cities,
-           count(*) FILTER (WHERE jurisdiction_level = 'city')::int AS component_cities,
-           count(*) FILTER (WHERE jurisdiction_level = 'municipality')::int AS municipalities,
-           count(*) FILTER (WHERE jurisdiction_level = 'special_area')::int AS special_areas,
+    SELECT count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'island_group')::int AS island_groups,
+           count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'region')::int AS regions,
+           count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'province')::int AS provinces,
+           count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'independent_city')::int AS independent_cities,
+           count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'city')::int AS component_cities,
+           count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'municipality')::int AS municipalities,
+           count(*) FILTER (WHERE is_directory_node AND jurisdiction_level = 'special_area')::int AS special_areas,
            count(*) FILTER (WHERE is_directory_node)::int AS directory_nodes
     FROM lgus`;
   assert.equal(counts.island_groups, 3);
