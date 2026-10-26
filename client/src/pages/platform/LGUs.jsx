@@ -14,7 +14,7 @@ const EMPTY_FORM = {
   slug: '',
   city: '',
   province: '',
-  jurisdiction_level: 'island_group',
+  jurisdiction_level: 'municipality',
   parent_lgu_id: '',
   map_latitude: '',
   map_longitude: '',
@@ -27,13 +27,13 @@ const EMPTY_FORM = {
 
 const LEVEL_LABELS = {
   island_group: 'Island group', region: 'Region', province: 'Province',
-  independent_city: 'Independent city', city: 'Component city',
+  independent_city: 'Independent city', special_area: 'Special / non-province area', city: 'Component city',
   municipality: 'Municipality', barangay: 'Barangay',
 };
 const LEVEL_OPTIONS = Object.entries(LEVEL_LABELS).map(([value, label]) => ({ value, label }));
 const PARENT_LEVELS = {
   island_group: [], region: ['island_group'], province: ['region'],
-  independent_city: ['region'], city: ['province'], municipality: ['province'],
+  independent_city: ['region'], special_area: ['region'], city: ['province', 'special_area'], municipality: ['province', 'region', 'special_area'],
   barangay: ['municipality', 'city', 'independent_city'],
 };
 const LEVEL_ORDER = ['island_group', 'region', 'province', 'independent_city', 'municipality', 'city', 'barangay'];
@@ -180,7 +180,16 @@ export default function LGUs() {
             </div>
           </div>
         </details>
-        {descendants.length > 0 && <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>{descendants.map((child) => renderNode(child, depth + 1, nextVisited))}</div>}
+        {descendants.length > 0 && (
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}>
+              View {descendants.length} direct subjurisdiction{descendants.length === 1 ? '' : 's'}
+            </summary>
+            <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+              {descendants.map((child) => renderNode(child, depth + 1, nextVisited))}
+            </div>
+          </details>
+        )}
       </article>
     );
   }
@@ -341,7 +350,7 @@ export default function LGUs() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {LEVEL_OPTIONS.map((level) => <span key={level.value} className="badge">{level.label}</span>)}
                   </div>
-                  <p className="muted small" style={{ margin: '10px 0 0' }}>The tree shows jurisdictions currently registered in WayGuard. It is not yet the complete official national directory; existing records can be placed into the correct level and parent below.</p>
+                  <p className="muted small" style={{ margin: '10px 0 0' }}>Directory source: Philippine Statistics Authority (PSA), PSGC, 2026-Q2 publication (30 June 2026), checked against the official Q3 2026 release (30 September 2026). The Q3 release's changes did not alter these region, province, city or municipality entries. Island groups are organizational groupings for WayGuard.</p>
                 </div>
                 {islandGroups.length > 0 ? (
                   <div style={{ display: 'grid', gap: 12 }}>{islandGroups.map((lgu) => renderNode(lgu))}</div>
