@@ -488,7 +488,19 @@ adminRoutes.put('/settings', admin, async (ctx) => {
       if (found.length !== new Set(ids).size) throw badRequest('Every mapped agency must exist and be active.');
     }
   }
-  const settings = await updateSettings(body, ctx.user.id, sql, ctx.user.lgu_id);
+  const settings = await sql.begin(async (tx) => {
+    if (body.lgu_name) {
+      const [duplicateName] = await tx`
+        SELECT id FROM lgus
+        WHERE lower(name) = lower(${body.lgu_name}) AND id <> ${ctx.user.lgu_id}`;
+      if (duplicateName) throw conflict('Another LGU already uses that name.');
+    }
+    const next = await updateSettings(body, ctx.user.id, tx, ctx.user.lgu_id);
+    if (body.lgu_name) {
+      await tx`UPDATE lgus SET name = ${body.lgu_name}, updated_at = now() WHERE id = ${ctx.user.lgu_id}`;
+    }
+    return next;
+  });
   await audit(sql, { actorId: ctx.user.id, action: 'settings.update', targetType: 'settings', details: body, ip: ctx.ip });
   ctx.json(200, { settings });
 });
