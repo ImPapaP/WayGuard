@@ -35,8 +35,8 @@ function fmtDateTime(d) {
   }).format(new Date(d));
 }
 
-export async function loadExportRows(query, limit) {
-  const where = adminFilters(query);
+export async function loadExportRows(query, limit, lguId = null) {
+  const where = adminFilters(query, lguId);
   return sql`
     SELECT r.code, r.status, r.severity, r.reported_severity, r.road_name, r.barangay, r.city, r.landmark,
            r.road_type, r.hazards, r.latitude, r.longitude, r.location_source, r.created_at, r.verified_at,
