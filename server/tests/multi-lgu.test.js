@@ -1,4 +1,5 @@
 import { test, before, after } from 'node:test';
+import { syncPsgcDirectory } from '../scripts/sync-psgc-directory.js';
 import assert from 'node:assert/strict';
 import {
   resetDatabase,
@@ -17,6 +18,7 @@ let defaultCitizen;
 
 before(async () => {
   await resetDatabase();
+  await syncPsgcDirectory({ db: getSql(), log: () => {} });
   server = await startServer();
   platform = await login(server.base, await createUser({ role: 'platform_admin' }));
   defaultAdmin = await login(server.base, await createUser({ role: 'admin' }));
@@ -24,6 +26,41 @@ before(async () => {
 });
 
 after(() => shutdown(server));
+
+test('official PSGC directory sync creates the full hierarchy and is repeatable', async () => {
+  const sql = getSql();
+  const [counts] = await sql`
+    SELECT count(*) FILTER (WHERE jurisdiction_level = 'island_group')::int AS island_groups,
+           count(*) FILTER (WHERE jurisdiction_level = 'region')::int AS regions,
+           count(*) FILTER (WHERE jurisdiction_level = 'province')::int AS provinces,
+           count(*) FILTER (WHERE jurisdiction_level = 'independent_city')::int AS independent_cities,
+           count(*) FILTER (WHERE jurisdiction_level = 'city')::int AS component_cities,
+           count(*) FILTER (WHERE jurisdiction_level = 'municipality')::int AS municipalities,
+           count(*) FILTER (WHERE jurisdiction_level = 'special_area')::int AS special_areas,
+           count(*) FILTER (WHERE is_directory_node)::int AS directory_nodes
+    FROM lgus`;
+  assert.equal(counts.island_groups, 3);
+  assert.equal(counts.regions, 18);
+  assert.equal(counts.provinces, 82);
+  assert.equal(counts.independent_cities, 38);
+  assert.equal(counts.component_cities, 111);
+  assert.equal(counts.municipalities, 1493);
+  assert.equal(counts.special_areas, 2);
+  assert.equal(counts.directory_nodes, 1747);
+
+  const [bulacan] = await sql`
+    SELECT child.psgc_code, child.jurisdiction_level, parent.name AS parent_name
+    FROM lgus child JOIN lgus parent ON parent.id = child.parent_lgu_id
+    WHERE child.name = 'Bulacan' AND child.is_directory_node`;
+  assert.ok(bulacan, 'Bulacan should exist under a region in the PSGC directory');
+  assert.equal(bulacan.psgc_code, '0301400000');
+  assert.equal(bulacan.jurisdiction_level, 'province');
+  assert.equal(bulacan.parent_name, 'Region III (Central Luzon)');
+
+  const firstSync = await syncPsgcDirectory({ db: sql, log: () => {} });
+  assert.equal(firstSync.inserted, 0, 'second sync should not insert duplicates');
+  assert.equal(firstSync.matched, 1747);
+});
 
 test('platform admins provision an LGU and its first administrator', async () => {
   const blocked = await defaultAdmin.get('/api/platform/lgus');
