@@ -1,0 +1,46 @@
+name: Verify WayGuard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wayguard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wayguard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/wayguard_test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/wayguard_test
+      WAYGUARD_DISABLE_RATE_LIMIT: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --include=dev
+      - name: Build client
+        run: npm run build
+        env:
+          NODE_ENV: production
+      - name: Run server regression tests
+        run: npm test
