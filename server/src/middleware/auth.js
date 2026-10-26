@@ -23,11 +23,31 @@ export function requireAuth() {
   };
 }
 
+// The platform administrator is the highest authority: anything an LGU
+// administrator or staff member may do, it may do in every LGU (its scope,
+// resolved in sessions.js, is every jurisdiction). Citizen-only and
+// crew-only actions stay with those roles.
+export function hasRole(user, roles) {
+  if (!user) return false;
+  if (roles.includes(user.role)) return true;
+  return user.role === 'platform_admin' && (roles.includes('admin') || roles.includes('staff'));
+}
+
+// True for anyone who manages reports for an LGU (admin, staff, platform admin).
+export function isLguManager(user) {
+  return hasRole(user, ['admin', 'staff']);
+}
+
+// True for an LGU administrator or the platform administrator.
+export function isAdministrator(user) {
+  return hasRole(user, ['admin']);
+}
+
 export function requireRole(...roles) {
   const auth = requireAuth();
   return async function ensureRole(ctx, next) {
     await auth(ctx, async () => {
-      if (!roles.includes(ctx.user.role)) throw forbidden();
+      if (!hasRole(ctx.user, roles)) throw forbidden();
       await next();
     });
   };

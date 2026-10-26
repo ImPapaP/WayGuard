@@ -1,5 +1,6 @@
 // Pothole report data access: creation, duplicate detection, permission
 // checks and the role-specific shapes returned by the API.
+import { isLguManager } from '../middleware/auth.js';
 import { sql } from '../db/index.js';
 import { forbidden, notFound } from '../lib/http.js';
 import { getSettings } from './settings.js';
@@ -138,7 +139,7 @@ export async function assertCanView(db, user, report) {
       ? user.accessible_lgu_ids.includes(report.lgu_id)
       : user.lgu_id === report.lgu_id);
   if (!allowed) throw notFound('Report not found.');
-  if (user.role === 'admin' || user.role === 'staff') return;
+  if (isLguManager(user)) return;
   if (user.role === 'citizen' && report.reporter_id === user.id) return;
   if (user.role === 'maintenance' && (await teamHasAssignment(db, report.id, user.team_id))) return;
   // Respond with 404 rather than 403 so report IDs cannot be probed.
@@ -199,7 +200,7 @@ export function publicShape(r) {
 export async function getReportDetail(db, id, user) {
   const r = await loadReportRow(db, id);
   await assertCanView(db, user, r);
-  const isAdmin = ['admin', 'staff'].includes(user.role) &&
+  const isAdmin = isLguManager(user) &&
     (Array.isArray(user.accessible_lgu_ids) ? user.accessible_lgu_ids.includes(r.lgu_id) : user.lgu_id === r.lgu_id);
   const isStaff = isAdmin || user.role === 'maintenance';
 

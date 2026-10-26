@@ -20,6 +20,8 @@ import {
   LuActivity,
   LuWifiOff,
   LuHardHat,
+  LuShieldCheck,
+  LuUserCog,
 } from 'react-icons/lu';
 import Logo from './Logo.jsx';
 import { Link, NavLink, useLocation, useNavigate } from '../lib/router.jsx';
@@ -152,6 +154,9 @@ export function PublicHeader() {
           </NavLink>
           {user?.role === 'platform_admin' ? (
             <>
+              <Link to="/admin" className="btn btn--sm btn--secondary">
+                <span className="hide-sm">LGU workspace</span><span className="show-sm">LGUs</span>
+              </Link>
               <Link to="/platform/lgus" className={`btn btn--sm ${pathname === '/platform/lgus' ? 'btn--navy' : 'btn--secondary'}`} aria-current={pathname === '/platform/lgus' ? 'page' : undefined}>
                 <span className="hide-sm">Management workspace</span><span className="show-sm">Management</span>
               </Link>
@@ -230,15 +235,23 @@ export function PublicLayout({ children, bare = false }) {
   );
 }
 
-export function AuthLayout({ children }) {
+export function AuthLayout({ children, aside, wide = false }) {
   return (
-    <div className="auth">
-      <aside className="auth__brand" aria-hidden>
-        <HeroBackdrop glows={false} bubbles={false} />
-        <span className="lane" />
-        <Logo variant="full-reversed" height={150} />
-        <p>Spot a pothole, send a photo and its location, and follow the repair until the road is safe again.</p>
-      </aside>
+    <div className={`auth${wide ? ' auth--wide' : ''}`}>
+      {aside ? (
+        <aside className="auth__brand auth__brand--rich">
+          <HeroBackdrop glows={false} bubbles={false} />
+          <span className="lane" aria-hidden />
+          {aside}
+        </aside>
+      ) : (
+        <aside className="auth__brand" aria-hidden>
+          <HeroBackdrop glows={false} bubbles={false} />
+          <span className="lane" />
+          <Logo variant="full-reversed" height={150} />
+          <p>Spot a pothole, send a photo and its location, and follow the repair until the road is safe again.</p>
+        </aside>
+      )}
       <main className="auth__form" id="main">
         <div className="auth__card">
           <Link to="/" className="auth__mobile-logo" aria-label="Wayguard home">
@@ -349,13 +362,26 @@ function AdminNav({ counts, unread, onNavigate }) {
       <nav className="sidebar__nav" aria-label="Workspace">
         {items.map(render)}
       </nav>
-      {user?.role === 'admin' && (
+      {(user?.role === 'admin' || user?.role === 'platform_admin') && (
         <>
           <div className="sidebar__group" id="manage-label">
             Management
           </div>
           <nav className="sidebar__nav" aria-labelledby="manage-label">
             {manage.map(render)}
+          </nav>
+        </>
+      )}
+      {user?.role === 'platform_admin' && (
+        <>
+          <div className="sidebar__group" id="platform-label">
+            Platform
+          </div>
+          <nav className="sidebar__nav" aria-labelledby="platform-label">
+            {[
+              { to: '/platform/lgus', label: 'LGUs and jurisdictions', icon: LuShieldCheck },
+              { to: '/platform/accounts', label: 'Accounts and assignments', icon: LuUserCog },
+            ].map(render)}
           </nav>
         </>
       )}
@@ -380,7 +406,7 @@ function Sidebar({ counts, unread, onNavigate }) {
           </span>
           <span>
             {user?.full_name}
-            <small>{user?.role === 'staff' ? 'LGU staff' : 'LGU administrator'}</small>
+            <small>{user?.role === 'staff' ? 'LGU staff' : user?.role === 'platform_admin' ? 'Platform administrator · all LGUs' : 'LGU administrator'}</small>
           </span>
         </div>
         <nav className="sidebar__nav" aria-label="Account">

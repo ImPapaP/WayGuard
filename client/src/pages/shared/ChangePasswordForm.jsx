@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { useToast } from '../../lib/toast.jsx';
-import { Button, TextField, Alert } from '../../components/ui.jsx';
+import { Button, PasswordField, PasswordRules, Alert } from '../../components/ui.jsx';
 
 export default function ChangePasswordForm({ onDone, submitLabel = 'Change password' }) {
   const { setUser } = useAuth();
@@ -46,31 +46,28 @@ export default function ChangePasswordForm({ onDone, submitLabel = 'Change passw
   return (
     <form className="form-stack" onSubmit={submit} noValidate>
       {error && <Alert type="error">{error}</Alert>}
-      <TextField
+      <PasswordField
         label="Current password"
-        type="password"
         autoComplete="current-password"
         value={form.current_password}
         onChange={set('current_password')}
         error={errors.current_password}
       />
-      <TextField
+      <PasswordField
         label="New password"
-        type="password"
         autoComplete="new-password"
-        hint="At least 8 characters, with a letter and a number."
         value={form.new_password}
         onChange={set('new_password')}
         error={errors.new_password}
       />
-      <TextField
+      <PasswordField
         label="Repeat new password"
-        type="password"
         autoComplete="new-password"
         value={form.confirm}
         onChange={set('confirm')}
         error={errors.confirm}
       />
+      <PasswordRules value={form.new_password} confirm={form.confirm} />
       <div>
         <Button type="submit" variant="navy" loading={busy}>
           {submitLabel}

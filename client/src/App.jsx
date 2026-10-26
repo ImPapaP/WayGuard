@@ -89,12 +89,12 @@ const crew = (el) => (
   </Protected>
 );
 const admin = (el) => (
-  <Protected roles={['admin']}>
+  <Protected roles={['admin', 'platform_admin']}>
     <AdminShell>{el}</AdminShell>
   </Protected>
 );
 const adminStaff = (el) => (
-  <Protected roles={['admin', 'staff']}>
+  <Protected roles={['admin', 'staff', 'platform_admin']}>
     <AdminShell>{el}</AdminShell>
   </Protected>
 );

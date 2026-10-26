@@ -788,3 +788,307 @@
   margin: 0;
   line-height: 1.55;
 }
+
+/* ---------------------------------------------------------------- Sign-up (revamped) */
+.auth--wide .auth__card {
+  max-width: 600px;
+}
+@media (min-width: 900px) {
+  .auth--wide {
+    grid-template-columns: minmax(380px, 0.85fr) 1.15fr;
+  }
+}
+.auth__brand--rich {
+  justify-content: flex-start !important;
+  padding: var(--s10) var(--s10) var(--s8);
+}
+.signup-aside {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s8);
+  height: 100%;
+  max-width: 440px;
+}
+.signup-aside .logo {
+  --logo-h: 120px;
+  height: 120px;
+  align-self: flex-start;
+}
+.signup-aside__eyebrow {
+  margin: 0 0 var(--s2) !important;
+  font-size: var(--fs-xs) !important;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber) !important;
+}
+.signup-aside h2 {
+  margin: 0 0 var(--s5);
+  font-size: var(--fs-2xl);
+  line-height: 1.15;
+  color: var(--white);
+  text-wrap: balance;
+}
+.signup-steps {
+  display: grid;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.signup-steps li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: var(--s3);
+  align-items: start;
+  animation: signup-rise 0.5s ease both;
+  animation-delay: calc(0.12s * var(--i) + 0.15s);
+}
+.signup-steps__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(250, 174, 11, 0.14);
+  color: var(--amber);
+  border: 1px solid rgba(250, 174, 11, 0.35);
+}
+.signup-steps__icon svg {
+  width: 22px;
+  height: 22px;
+}
+.signup-steps strong {
+  display: block;
+  color: var(--white);
+  font-size: var(--fs-md);
+}
+.signup-steps li > span:last-child > span {
+  display: block;
+  color: #c9d3e3;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.signup-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s3);
+  margin: auto 0 0;
+  padding: var(--s4);
+  border-radius: var(--r-lg);
+  background: rgba(10, 34, 68, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.signup-stats div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+.signup-stats dt {
+  font-size: var(--fs-xs);
+  color: #aebbd1;
+}
+.signup-stats dd {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 800;
+  font-size: var(--fs-2xl);
+  color: var(--amber);
+}
+.signup-aside__privacy {
+  display: flex !important;
+  gap: var(--s2);
+  align-items: flex-start;
+  margin: 0 !important;
+  font-size: var(--fs-sm) !important;
+  color: #c9d3e3 !important;
+  max-width: none !important;
+}
+.signup-aside__privacy svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--amber);
+}
+@keyframes signup-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.signup-progress {
+  height: 6px;
+  margin: 0 0 var(--s5);
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.signup-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--amber-600), var(--amber));
+  transition: width 0.35s ease;
+}
+.register-form {
+  display: grid;
+  gap: var(--s4);
+}
+.signup-step {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--white);
+  min-width: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.signup-step:focus-within {
+  border-color: var(--navy-300);
+  box-shadow: 0 8px 24px rgba(6, 20, 41, 0.07);
+}
+.signup-step__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.signup-step__head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--navy);
+}
+.signup-step__head h2 svg {
+  color: var(--navy-500);
+}
+.signup-step__num {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--amber);
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.signup-step__head.is-done .signup-step__num {
+  background: var(--success);
+  color: var(--white);
+}
+.signup-note {
+  margin: 0;
+}
+.signup-submit {
+  margin-top: var(--s1);
+}
+.signup-submit svg {
+  transition: transform 0.15s ease;
+}
+.signup-submit:hover svg {
+  transform: translateX(3px);
+}
+.signup-consent {
+  margin: 0;
+  text-align: center;
+}
+
+/* City / municipality search */
+.lgu-combo {
+  position: relative;
+}
+.lgu-combo .search-input {
+  flex: none;
+}
+.lgu-combo__clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.lgu-combo__clear:hover {
+  background: var(--surface-sunken);
+}
+.lgu-combo .search-input .lgu-combo__clear svg {
+  position: static;
+  transform: none;
+}
+.lgu-combo__list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  margin: 0;
+  padding: var(--s1);
+  list-style: none;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-overlay);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.lgu-combo__list [role='option'] {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.lgu-combo__list [role='option'].is-active {
+  background: var(--amber-50);
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+.lgu-combo__empty {
+  padding: 10px 12px;
+}
+.lgu-chosen {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px 12px;
+  border: 1px solid var(--amber-300);
+  border-radius: var(--r-md);
+  background: var(--amber-50);
+}
+.lgu-chosen > svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--amber-800);
+}
+.lgu-chosen > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.lgu-chosen strong {
+  color: var(--navy);
+}
+@media (max-width: 480px) {
+  .signup-step {
+    padding: var(--s4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signup-steps li {
+    animation: none;
+  }
+}

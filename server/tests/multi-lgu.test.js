@@ -341,3 +341,59 @@ test('regional administrator scopes reports, maps, exports, teams and users to a
   assert.equal(postDemotionHistory.status, 200, 'history remains visible after an administrator is demoted');
   assert.ok(postDemotionHistory.data.items.some((row) => row.action === 'revoked' && row.lgu_id === region.id));
 });
+
+test('the platform administrator has every LGU administrator power in every LGU', async () => {
+  const sql = getSql();
+  // A second LGU with its own citizen report.
+  const [other] = await sql`
+    INSERT INTO lgus (name, slug, city, province, jurisdiction_level, is_active)
+    VALUES ('Platform Reach Town', 'platform-reach-town', 'Platform Reach Town', 'Bulacan', 'municipality', TRUE) RETURNING id`;
+  const otherCitizen = await login(server.base, await createUser({ role: 'citizen', lguId: other.id }));
+  const created = await submitReport(otherCitizen);
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const reportId = created.data.report.id;
+  const mine = await submitReport(defaultCitizen, { latitude: '14.8611', longitude: '120.8123', road_name: 'Platform Test Road' });
+  assert.equal(mine.status, 201, JSON.stringify(mine.data));
+
+  // An LGU administrator cannot see the other LGU's report …
+  assert.equal((await defaultAdmin.get('/api/reports/' + reportId)).status, 404);
+  // … the platform administrator sees and works on reports in both LGUs.
+  const list = await platform.get('/api/admin/reports?page_size=100');
+  assert.equal(list.status, 200, JSON.stringify(list.data));
+  const ids = list.data.items.map((r) => r.id);
+  assert.ok(ids.includes(reportId) && ids.includes(mine.data.report.id), 'reports from every LGU are listed');
+  assert.equal((await platform.get('/api/reports/' + reportId)).status, 200);
+  assert.equal((await platform.post('/api/admin/reports/' + reportId + '/review', {})).status, 200);
+  const verified = await platform.post('/api/admin/reports/' + reportId + '/verify', {});
+  assert.equal(verified.status, 200, JSON.stringify(verified.data));
+  const [row] = await sql`SELECT status FROM reports WHERE id = ${reportId}`;
+  assert.equal(row.status, 'verified');
+
+  // Dashboard figures cover every LGU.
+  const stats = await platform.get('/api/admin/stats');
+  assert.equal(stats.status, 200);
+  const [{ n }] = await sql`SELECT count(*)::int AS n FROM reports`;
+  assert.equal(stats.data.totals.total, n);
+
+  // Users, teams, settings (of a chosen LGU), activity log and exports.
+  assert.equal((await platform.get('/api/admin/users')).status, 200);
+  assert.equal((await platform.get('/api/admin/teams')).status, 200);
+  const team = await platform.post('/api/admin/teams', { name: 'Platform Reach Crew', lgu_id: other.id });
+  assert.equal(team.status, 201, JSON.stringify(team.data));
+  const settings = await platform.get('/api/admin/settings?lgu_id=' + other.id);
+  assert.equal(settings.status, 200, JSON.stringify(settings.data));
+  assert.equal(settings.data.lgu.id, other.id);
+  const saved = await platform.put('/api/admin/settings?lgu_id=' + other.id, { duplicate_radius_m: 45 });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  const [radius] = await sql`SELECT value FROM settings WHERE lgu_id = ${other.id} AND key = 'duplicate_radius_m'`;
+  assert.equal(Number(radius.value), 45);
+  assert.equal((await platform.get('/api/admin/settings')).status, 200, 'defaults to an LGU when none is chosen');
+  assert.equal((await platform.get('/api/admin/audit')).status, 200);
+  assert.equal((await platform.get('/api/admin/exports/reports.csv')).status, 200);
+
+  // An LGU administrator still cannot open another LGU's settings.
+  assert.equal((await defaultAdmin.get('/api/admin/settings?lgu_id=' + other.id)).status, 404);
+  // Citizen-only actions stay with citizens.
+  assert.equal((await submitReport(platform)).status, 403);
+});
+

@@ -97,6 +97,9 @@ export function loadSession() {
               SELECT DISTINCT id FROM accessible ORDER BY id`;
           }
           user.accessible_lgu_ids = scopes.map((row) => row.id);
+        } else if (user.role === 'platform_admin') {
+          // Highest authority: every jurisdiction, active or not.
+          user.accessible_lgu_ids = (await sql`SELECT id FROM lgus ORDER BY id`).map((row) => row.id);
         } else {
           user.accessible_lgu_ids = user.lgu_id == null ? [] : [user.lgu_id];
         }

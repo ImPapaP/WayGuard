@@ -1,6 +1,7 @@
 // System settings: LGU name, duplicate detection, photo limits, public map
 // window, default map position and the road-type → agency routing.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { LuSearch } from 'react-icons/lu';
 import { api } from '../../lib/api.js';
 import { useApi, useDocumentTitle } from '../../lib/hooks.js';
 import { useAuth } from '../../lib/auth.jsx';
@@ -12,9 +13,15 @@ import { ROAD_TYPES } from '../../lib/format.js';
 export default function Settings() {
   useDocumentTitle('System settings');
   const toast = useToast();
-  const { refresh } = useAuth();
-  const { data, error, loading, reload } = useApi('/api/admin/settings');
-  const { data: agencies } = useApi('/api/admin/agencies');
+  const { refresh, user } = useAuth();
+  const isPlatform = user?.role === 'platform_admin';
+  const [lguId, setLguId] = useState(null);
+  const { data, error, loading, reload } = useApi(`/api/admin/settings${lguId ? `?lgu_id=${lguId}` : ''}`);
+  const { data: allAgencies } = useApi('/api/admin/agencies');
+  const currentLgu = data?.lgu;
+  const agencies = allAgencies && currentLgu
+    ? { items: allAgencies.items.filter((a) => a.lgu_id == null || Number(a.lgu_id) === Number(currentLgu.id)) }
+    : allAgencies;
   const [form, setForm] = useState(null);
   const [errors, setErrors] = useState({});
   const [saveError, setSaveError] = useState(null);
@@ -38,7 +45,7 @@ export default function Settings() {
   }, [data]);
 
   if (error) return <div className="container page"><ErrorState error={error} onRetry={reload} /></div>;
-  if (loading || !form || !agencies) return <Loading />;
+  if ((loading && !form) || !form || !agencies) return <Loading />;
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -47,7 +54,7 @@ export default function Settings() {
     setBusy(true);
     setSaveError(null);
     try {
-      await api.put('/api/admin/settings', {
+      await api.put(`/api/admin/settings${currentLgu ? `?lgu_id=${currentLgu.id}` : ''}`, {
         lgu_name: form.lgu_name,
         duplicate_radius_m: Number(form.duplicate_radius_m),
         duplicate_window_days: Number(form.duplicate_window_days),
@@ -57,7 +64,7 @@ export default function Settings() {
         road_type_agency: Object.fromEntries(Object.entries(form.road_type_agency).map(([k, v]) => [k, v ? Number(v) : null])),
       });
       setErrors({});
-      toast('Settings saved.');
+      toast(isPlatform && currentLgu ? `Settings saved for ${form.lgu_name || currentLgu.name}.` : 'Settings saved.');
       refresh();
     } catch (err) {
       setErrors(err.fields || {});
@@ -75,6 +82,7 @@ export default function Settings() {
           <p>Changes apply immediately for everyone and are recorded in the activity log.</p>
         </div>
       </div>
+      {isPlatform && <LguPicker current={currentLgu} onPick={(id) => { setForm(null); setLguId(id); }} />}
       <form className="stack stack--lg" onSubmit={save} noValidate>
         {saveError && <Alert type="error">{saveError}</Alert>}
         <section className="panel form-stack" aria-labelledby="g-title">
@@ -155,3 +163,47 @@ export default function Settings() {
     </div>
   );
 }
+
+// Platform administrators can open the settings of any LGU.
+function LguPicker({ current, onPick }) {
+  const { data } = useApi('/api/platform/lgus');
+  const [q, setQ] = useState('');
+  const matches = useMemo(() => {
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length || !data) return [];
+    return data.items
+      .filter((l) => !l.is_directory_node || ['independent_city', 'city', 'municipality'].includes(l.jurisdiction_level))
+      .filter((l) => words.every((w) => [l.name, l.province, l.city].filter(Boolean).join(' ').toLowerCase().includes(w)))
+      .slice(0, 8);
+  }, [q, data]);
+  return (
+    <section className="panel settings-lgu" aria-labelledby="lgu-pick-title">
+      <div>
+        <h2 id="lgu-pick-title" className="section-title">Settings for</h2>
+        <p className="settings-lgu__current">
+          <strong>{current?.name || '…'}</strong>
+          {current && <span className="muted small"> · {[current.city, current.province].filter(Boolean).join(', ') || (current.jurisdiction_level || '').replaceAll('_', ' ')}</span>}
+        </p>
+      </div>
+      <div className="settings-lgu__search">
+        <div className="search-input">
+          <LuSearch aria-hidden />
+          <input className="input" type="search" placeholder="Switch to another city or municipality" aria-label="Find an LGU" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        {matches.length > 0 && (
+          <ul className="settings-lgu__results">
+            {matches.map((l) => (
+              <li key={l.id}>
+                <button type="button" onClick={() => { onPick(l.id); setQ(''); }}>
+                  <strong>{l.name}</strong>
+                  <span className="muted small">{[l.province, l.report_count ? `${l.report_count} reports` : null].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+

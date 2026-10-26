@@ -535,16 +535,39 @@ adminRoutes.patch('/agencies/:id', admin, async (ctx) => {
 // ---------------------------------------------------------------------------
 // Settings and audit log
 // ---------------------------------------------------------------------------
+// Which LGU's settings a request is about: the administrator's own LGU, or
+// (?lgu_id=) another LGU inside their scope. The platform administrator has no
+// LGU of its own, so it defaults to the LGU with the most reports.
+async function settingsLgu(ctx) {
+  const scope = ctx.user.accessible_lgu_ids || [ctx.user.lgu_id];
+  const requested = Number(ctx.query.lgu_id);
+  let id = Number.isInteger(requested) && requested > 0 ? requested : ctx.user.lgu_id;
+  if (id == null) {
+    const [busiest] = await sql`
+      SELECT l.id FROM lgus l LEFT JOIN reports r ON r.lgu_id = l.id
+      WHERE l.is_active AND (NOT l.is_directory_node OR l.jurisdiction_level IN ('independent_city', 'city', 'municipality'))
+      GROUP BY l.id ORDER BY count(r.id) DESC, l.id LIMIT 1`;
+    id = busiest?.id;
+  }
+  if (id == null || !scope.includes(id)) throw notFound('LGU not found in your jurisdiction.');
+  const [lgu] = await sql`SELECT id, name, city, province, jurisdiction_level FROM lgus WHERE id = ${id}`;
+  if (!lgu) throw notFound('LGU not found.');
+  return lgu;
+}
+
 adminRoutes.get('/settings', admin, async (ctx) => {
-  ctx.json(200, { settings: await getSettings(sql, ctx.user.lgu_id) });
+  const lgu = await settingsLgu(ctx);
+  ctx.json(200, { settings: await getSettings(sql, lgu.id), lgu });
 });
 
 adminRoutes.put('/settings', admin, async (ctx) => {
+  const lgu = await settingsLgu(ctx);
+  const lguId = lgu.id;
   const body = await readJson(ctx, settingsSchema);
   if (body.road_type_agency) {
     const ids = Object.values(body.road_type_agency).filter(Boolean);
     if (ids.length) {
-      const found = await sql`SELECT id FROM agencies WHERE id = ANY(${ids}) AND lgu_id = ${ctx.user.lgu_id} AND is_active`;
+      const found = await sql`SELECT id FROM agencies WHERE id = ANY(${ids}) AND lgu_id = ${lguId} AND is_active`;
       if (found.length !== new Set(ids).size) throw badRequest('Every mapped agency must exist and be active.');
     }
   }
@@ -552,17 +575,17 @@ adminRoutes.put('/settings', admin, async (ctx) => {
     if (body.lgu_name) {
       const [duplicateName] = await tx`
         SELECT id FROM lgus
-        WHERE lower(name) = lower(${body.lgu_name}) AND id <> ${ctx.user.lgu_id}`;
+        WHERE lower(name) = lower(${body.lgu_name}) AND id <> ${lguId}`;
       if (duplicateName) throw conflict('Another LGU already uses that name.');
     }
-    const next = await updateSettings(body, ctx.user.id, tx, ctx.user.lgu_id);
+    const next = await updateSettings(body, ctx.user.id, tx, lguId);
     if (body.lgu_name) {
-      await tx`UPDATE lgus SET name = ${body.lgu_name}, updated_at = now() WHERE id = ${ctx.user.lgu_id}`;
+      await tx`UPDATE lgus SET name = ${body.lgu_name}, updated_at = now() WHERE id = ${lguId}`;
     }
     return next;
   });
-  await audit(sql, { actorId: ctx.user.id, action: 'settings.update', targetType: 'settings', details: body, ip: ctx.ip });
-  ctx.json(200, { settings });
+  await audit(sql, { actorId: ctx.user.id, action: 'settings.update', targetType: 'settings', targetId: lguId, details: body, ip: ctx.ip });
+  ctx.json(200, { settings, lgu: { ...lgu, name: body.lgu_name || lgu.name } });
 });
 
 adminRoutes.get('/audit', admin, async (ctx) => {
@@ -571,7 +594,8 @@ adminRoutes.get('/audit', admin, async (ctx) => {
     SELECT l.id, l.action, l.target_type, l.target_id, l.details, l.ip, l.created_at, u.full_name AS actor_name,
            count(*) OVER()::int AS total
     FROM audit_logs l LEFT JOIN users u ON u.id = l.actor_id
-    WHERE l.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})
+    WHERE (l.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})
+           OR ${ctx.user.role === 'platform_admin'})
     ORDER BY l.created_at DESC, l.id DESC
     LIMIT ${pageSize} OFFSET ${offset}`;
   ctx.json(200, { items: rows.map(({ total, ...r }) => r), total: rows[0]?.total ?? 0, page, pageSize });

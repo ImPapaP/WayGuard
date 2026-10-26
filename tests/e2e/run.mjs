@@ -120,6 +120,9 @@ async function signIn(page, base, email, password) {
 }
 
 await resetDatabase();
+// Real installations load the PSGC directory; here the default LGU just needs
+// a city so citizens can choose it when they sign up.
+await getSql()`UPDATE lgus SET name = 'Test City', city = 'Test City', province = 'Bulacan' WHERE id = 1`;
 const server = await startServer();
 const base = server.base;
 // WebGL through SwiftShader, so the vector map renders in headless Chromium.
@@ -142,9 +145,15 @@ try {
     await citizen.goto(`${base}/register`);
     await citizen.getByLabel('Full name').fill('Maria Santos');
     await citizen.getByLabel('E-mail').fill('maria.e2e@example.test');
+    // Find the LGU by typing part of its name and picking it from the list.
+    const { lgus } = await citizen.evaluate(() => fetch('/api/public/config').then((r) => r.json()));
+    if (!lgus?.length) throw new Error('no LGU is available for registration');
+    await citizen.getByRole('combobox', { name: 'City or municipality' }).fill(lgus[0].name.slice(0, 6));
+    await citizen.getByRole('option', { name: new RegExp(lgus[0].name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).first().click();
+    await citizen.locator('.lgu-chosen').getByText(lgus[0].name).waitFor();
     await citizen.getByLabel('Password', { exact: true }).fill('Lubak2026');
-    await citizen.getByLabel('Repeat password').fill('Lubak2026');
-    await citizen.getByRole('button', { name: 'Create account' }).click();
+    await citizen.getByLabel('Repeat password', { exact: true }).fill('Lubak2026');
+    await citizen.getByRole('button', { name: /Create my account/ }).click();
     await citizen.waitForURL('**/app/report');
   });
   await step('shows validation errors for an empty report', async () => {
@@ -237,9 +246,9 @@ try {
   await step('must replace the temporary password on first sign-in', async () => {
     await signIn(field, base, crew.email, 'TempCrew123');
     await field.getByRole('heading', { name: 'Choose your own password' }).waitFor();
-    await field.getByLabel('Current password').fill('TempCrew123');
+    await field.getByLabel('Current password', { exact: true }).fill('TempCrew123');
     await field.getByLabel('New password', { exact: true }).fill('CrewPass456');
-    await field.getByLabel('Repeat new password').fill('CrewPass456');
+    await field.getByLabel('Repeat new password', { exact: true }).fill('CrewPass456');
     await field.getByRole('button', { name: 'Save and continue' }).click();
     await field.getByRole('heading', { name: 'Repair tasks' }).waitFor();
   });
@@ -351,26 +360,27 @@ try {
   });
   await step('creates a staff account with a temporary password', async () => {
     await lgu.goto(`${base}/admin/users`);
-    await lgu.getByRole('button', { name: 'Add staff account' }).click();
+    await lgu.getByRole('button', { name: 'New account' }).click();
     const dlg = lgu.getByRole('dialog');
     await dlg.getByLabel('Full name').fill('Lito Garcia');
-    await dlg.getByLabel('E-mail').fill('lito.e2e@example.test');
-    await dlg.getByLabel('Team').selectOption(String(team.id));
+    await dlg.getByLabel('E-mail address').fill('lito.e2e@example.test');
+    await dlg.getByLabel('Account role').selectOption('maintenance');
+    await dlg.getByLabel('Assigned maintenance team').selectOption(String(team.id));
     await dlg.getByRole('button', { name: 'Create account' }).click();
-    await lgu.getByText('Account created for Lito Garcia.').waitFor();
+    await lgu.getByText('New account created. Share its temporary password securely.').waitFor();
     await lgu.getByRole('cell', { name: /Lito Garcia/ }).getByText('Temporary password').waitFor();
   });
   await step('creates a maintenance team and a responsible agency', async () => {
     await lgu.goto(`${base}/admin/teams`);
     await lgu.getByRole('button', { name: 'New team' }).click();
     await lgu.getByRole('dialog').getByLabel('Team name').fill('Road Crew Bravo');
-    await lgu.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
-    await lgu.getByText('Team created.').waitFor();
+    await lgu.getByRole('dialog').getByRole('button', { name: 'Create team' }).click();
+    await lgu.getByText('Maintenance team created.').waitFor();
     await lgu.getByRole('button', { name: 'New agency' }).click();
     await lgu.getByRole('dialog').getByLabel('Agency or office name').fill('DPWH District Engineering Office');
-    await lgu.getByRole('dialog').getByLabel('Jurisdiction').selectOption('national');
-    await lgu.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
-    await lgu.getByText('Agency added.').waitFor();
+    await lgu.getByRole('dialog').getByLabel('Road jurisdiction covered').selectOption('national');
+    await lgu.getByRole('dialog').getByRole('button', { name: 'Create agency' }).click();
+    await lgu.getByText('Responsible agency created.').waitFor();
   });
   await step('changes system settings and sees them on the public site', async () => {
     await lgu.goto(`${base}/admin/settings`);
@@ -378,9 +388,12 @@ try {
     await lgu.getByLabel('Radius in metres').fill('45');
     await lgu.getByRole('button', { name: 'Save settings' }).click();
     await lgu.getByText('Settings saved.').waitFor();
-    const visitor = await newPage(browser);
-    await visitor.goto(`${base}/`);
-    await visitor.getByText('Send a photo and the exact location to City of Malolos.').waitFor();
+    // With several LGUs the public home page names no single LGU; check the
+    // saved values instead, after a fresh load.
+    await lgu.reload();
+    await lgu.getByLabel('LGU name').waitFor();
+    if ((await lgu.getByLabel('LGU name').inputValue()) !== 'City of Malolos') throw new Error('LGU name was not saved');
+    if ((await lgu.getByLabel('Radius in metres').inputValue()) !== '45') throw new Error('radius was not saved');
   });
   await step('downloads CSV, PDF and summary exports', async () => {
     await lgu.goto(`${base}/admin/exports`);
@@ -392,7 +405,8 @@ try {
     const [sum] = await Promise.all([lgu.waitForEvent('download'), lgu.getByRole('link', { name: 'Download summary PDF' }).click()]);
     if (!(await sum.suggestedFilename()).startsWith('wayguard-summary-')) throw new Error('summary missing');
     await lgu.goto(`${base}/admin`);
-    await lgu.getByRole('heading', { name: 'Reported and resolved per month' }).waitFor();
+    await lgu.getByRole('heading', { name: 'Per month' }).waitFor();
+    await lgu.getByRole('heading', { name: 'When potholes are reported' }).waitFor();
     await lgu.screenshot({ path: path.join(outDir, '05-admin-dashboard.png'), fullPage: true, timeout: 45_000 });
   });
   await step('citizen cannot open the admin workspace', async () => {

@@ -1378,3 +1378,61 @@
     padding-inline: 10px;
   }
 }
+
+/* Password field with show / hide button */
+.password-input {
+  position: relative;
+}
+.password-input .input {
+  padding-right: 88px;
+}
+.password-input__toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--navy-500);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.password-input__toggle:hover {
+  background: var(--surface-sunken);
+  color: var(--navy);
+}
+.password-input__toggle:focus-visible {
+  outline: var(--focus);
+  outline-offset: 1px;
+}
+.password-input__toggle[aria-pressed='true'] {
+  color: var(--amber-800);
+}
+.password-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.password-rules li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease;
+}
+.password-rules li.is-ok {
+  color: var(--success);
+  font-weight: 700;
+}

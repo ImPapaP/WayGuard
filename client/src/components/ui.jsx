@@ -1,5 +1,5 @@
 // Small building blocks shared by every screen.
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LuCircleAlert,
@@ -18,6 +18,9 @@ import {
   LuCircleX,
   LuCopy,
   LuHourglass,
+  LuEye,
+  LuEyeOff,
+  LuCircle,
 } from 'react-icons/lu';
 import { STATUS, SEVERITY } from '../lib/format.js';
 
@@ -72,6 +75,59 @@ export function TextField({ label, hint, error, optional, multiline, className, 
         )
       }
     </Field>
+  );
+}
+
+// Password input with a show / hide button inside the field.
+export function PasswordField({ label, hint, error, optional, className, ...input }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <Field label={label} hint={hint} error={error} optional={optional} className={className}>
+      {({ id, describedBy, invalid }) => (
+        <div className="password-input">
+          <input
+            id={id}
+            className="input"
+            aria-describedby={describedBy}
+            aria-invalid={invalid || undefined}
+            {...input}
+            type={shown ? 'text' : 'password'}
+          />
+          <button
+            type="button"
+            className="password-input__toggle"
+            aria-label={shown ? `Hide ${String(label).toLowerCase()}` : `Show ${String(label).toLowerCase()}`}
+            aria-pressed={shown}
+            aria-controls={id}
+            onClick={() => setShown((v) => !v)}
+          >
+            {shown ? <LuEyeOff aria-hidden /> : <LuEye aria-hidden />}
+            <span>{shown ? 'Hide' : 'Show'}</span>
+          </button>
+        </div>
+      )}
+    </Field>
+  );
+}
+
+// Live checklist for a new password (the server applies the same rules).
+export function PasswordRules({ value, confirm }) {
+  const rules = [
+    { ok: value.length >= 8, text: 'At least 8 characters' },
+    { ok: /[A-Za-z]/.test(value), text: 'A letter' },
+    { ok: /\d/.test(value), text: 'A number' },
+  ];
+  if (confirm !== undefined) rules.push({ ok: Boolean(value) && value === confirm, text: 'Both passwords match' });
+  return (
+    <ul className="password-rules" aria-label="Password requirements">
+      {rules.map((r) => (
+        <li key={r.text} className={r.ok ? 'is-ok' : ''}>
+          {r.ok ? <LuCircleCheck aria-hidden /> : <LuCircle aria-hidden />}
+          {r.text}
+          <span className="visually-hidden">{r.ok ? ' (done)' : ' (not yet)'}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

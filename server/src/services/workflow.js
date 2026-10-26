@@ -7,6 +7,7 @@
 //       ├──────────────┴──────────────┴──► rejected / duplicate     └─ completion submitted by crew,
 //       │                                       │                     approved (resolved) or returned
 //       └───────────────────────────────────────┴─ reopen ──► under_review
+import { isLguManager, isAdministrator } from '../middleware/auth.js';
 import { sql } from '../db/index.js';
 import { HttpError, badRequest, conflict, forbidden, notFound } from '../lib/http.js';
 import {
@@ -31,7 +32,10 @@ export const TRANSITIONS = {
 };
 
 export function canTransition(from, to, role) {
-  return Boolean(TRANSITIONS[from] && TRANSITIONS[from][to] && TRANSITIONS[from][to].includes(role));
+  const allowed = TRANSITIONS[from] && TRANSITIONS[from][to];
+  if (!allowed) return false;
+  // The platform administrator may do whatever an LGU administrator may do.
+  return allowed.includes(role) || (role === 'platform_admin' && allowed.includes('admin'));
 }
 
 function assertTransition(report, to, user) {
@@ -278,7 +282,7 @@ export function approveCompletion(reportId, user, { note }) {
 
 export function returnCompletion(reportId, user, { reason }) {
   return withReport(reportId, async (tx, report) => {
-    if (!['admin', 'staff'].includes(user.role)) throw forbidden();
+    if (!isLguManager(user)) throw forbidden();
     if (report.status !== 'in_progress' || !report.work_completed_at) {
       throw new HttpError(409, 'There is no completed repair waiting for verification.', undefined, 'not_completed');
     }
@@ -306,7 +310,7 @@ export function returnCompletion(reportId, user, { reason }) {
 // Maintenance actions
 // ---------------------------------------------------------------------------
 async function assertCrewCanWork(tx, report, user) {
-  if (user.role === 'admin') return;
+  if (isAdministrator(user)) return;
   if (user.role !== 'maintenance') throw forbidden();
   if (!(await teamHasAssignment(tx, report.id, user.team_id, { activeOnly: true }))) {
     throw notFound('This task is not assigned to your team.');
