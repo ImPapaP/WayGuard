@@ -238,6 +238,17 @@ adminRoutes.get('/stats', adminOrStaff, async (ctx) => {
   ctx.json(200, await computeStats(ctx.query, (ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])));
 });
 
+// Jurisdiction choices are derived from the server-authenticated scope, never from client claims.
+adminRoutes.get('/jurisdictions', adminOrStaff, async (ctx) => {
+  const ids = ctx.user.accessible_lgu_ids || [ctx.user.lgu_id];
+  const items = await sql`
+    SELECT l.id, l.name, l.city, l.province, l.jurisdiction_level, l.parent_lgu_id, l.is_active
+    FROM lgus l
+    WHERE l.id = ANY(${ids}) AND l.is_active
+    ORDER BY l.jurisdiction_level, l.name`;
+  ctx.json(200, { items });
+});
+
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
