@@ -1,4 +1,4 @@
-import { Router, Routes, Navigate, useLocation, useParams } from './lib/router.jsx';
+import { Router, Routes, Navigate, Link, useLocation, useParams } from './lib/router.jsx';
 import { AuthProvider, useAuth, HOME_BY_ROLE } from './lib/auth.jsx';
 import { ToastProvider } from './lib/toast.jsx';
 import { Loading } from './components/ui.jsx';
@@ -36,13 +36,35 @@ import CrewMap from './pages/crew/CrewMap.jsx';
 
 // Shows the page only to signed-in users with one of `roles`. The server
 // enforces the same rules; this guard just routes people to the right place.
-function Protected({ roles, children }) {
+function Protected({ roles, children, explainAccessDenied = false }) {
   const { user } = useAuth();
   const { pathname, search } = useLocation();
   if (user === undefined) return <Loading label="Opening Wayguard…" />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(pathname + search)}`} />;
   if (user.must_change_password) return <ForcePasswordChange />;
-  if (!roles.includes(user.role)) return <Navigate to={HOME_BY_ROLE[user.role]} />;
+  if (!roles.includes(user.role)) {
+    if (explainAccessDenied) {
+      return (
+        <PublicLayout>
+          <div className="container page">
+            <section className="panel" style={{ maxWidth: 760, margin: '36px auto' }}>
+              <p className="eyebrow">Platform administration</p>
+              <h1>Platform management access required</h1>
+              <p className="muted">
+                Accounts and jurisdiction assignments are available only to a platform administrator.
+                You are currently signed in with the {String(user.role || 'unknown').replaceAll('_', ' ')} role.
+                LGU administrator accounts can manage only their own assigned operational area.
+              </p>
+              <Link className="btn btn--navy" to={HOME_BY_ROLE[user.role] || '/'}>
+                Return to my workspace
+              </Link>
+            </section>
+          </div>
+        </PublicLayout>
+      );
+    }
+    return <Navigate to={HOME_BY_ROLE[user.role] || '/'} />;
+  }
   return children;
 }
 
@@ -76,7 +98,7 @@ const adminStaff = (el) => (
     <AdminShell>{el}</AdminShell>
   </Protected>
 );
-const platformAdmin = (el) => <Protected roles={['platform_admin']}>{el}</Protected>;
+const platformAdmin = (el) => <Protected roles={['platform_admin']} explainAccessDenied>{el}</Protected>;
 
 const routes = [
   { path: '/', element: <PublicLayout><Landing /></PublicLayout> },
