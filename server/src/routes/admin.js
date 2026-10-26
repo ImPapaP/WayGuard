@@ -35,7 +35,7 @@ const adminOrStaff = requireRole('admin', 'staff');
 adminRoutes.get('/reports', adminOrStaff, async (ctx) => {
   const { page, pageSize, offset } = pagination(ctx.query, { defaultSize: 20, maxSize: 100 });
   const s = await getSettings(sql, ctx.user.lgu_id);
-  const where = adminFilters(ctx.query, ctx.user.lgu_id);
+  const where = adminFilters(ctx.query, (ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]));
   const order = (SORTS[ctx.query.sort] || SORTS.priority)();
   const dupExpr = possibleDuplicatesExpr(s.duplicate_radius_m, s.duplicate_window_days);
   const dupFilter = ctx.query.has_duplicates === 'true' ? sql`AND ${dupExpr} > 0` : sql``;
@@ -63,7 +63,7 @@ adminRoutes.get('/reports', adminOrStaff, async (ctx) => {
 
 // All matching reports for the admin map (no pagination, capped).
 adminRoutes.get('/map', adminOrStaff, async (ctx) => {
-  const where = adminFilters(ctx.query, ctx.user.lgu_id);
+  const where = adminFilters(ctx.query, (ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]));
   const rows = await sql`
     SELECT r.id, r.code, r.status, r.severity, r.road_name, r.barangay, r.landmark, r.latitude, r.longitude,
            r.created_at, r.work_completed_at, r.is_demo
@@ -76,7 +76,7 @@ adminRoutes.get('/map', adminOrStaff, async (ctx) => {
 adminRoutes.get('/barangays', adminOrStaff, async (ctx) => {
   const rows = await sql`
     SELECT barangay, count(*)::int AS n FROM reports
-    WHERE lgu_id = ${ctx.user.lgu_id} AND barangay IS NOT NULL AND barangay <> ''
+    WHERE lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) AND barangay IS NOT NULL AND barangay <> ''
     GROUP BY barangay ORDER BY barangay`;
   ctx.json(200, { items: rows });
 });
@@ -115,7 +115,7 @@ const commentSchema = z.object({
 
 const action = (fn) => async (ctx) => {
   const id = parseId(ctx.params.id, 'report id');
-  const [ownedReport] = await sql`SELECT id FROM reports WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id}`;
+  const [ownedReport] = await sql`SELECT id FROM reports WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})`;
   if (!ownedReport) throw notFound('Report not found.');
   const result = await fn(ctx, id);
   ctx.json(200, { ok: true, ...result });
@@ -177,7 +177,7 @@ adminRoutes.patch('/reports/:id', adminOrStaff, async (ctx) => {
   const body = await readJson(ctx, editSchema);
   await sql.begin(async (tx) => {
     const r = await loadReportRow(tx, id, { lock: true });
-    if (r.lgu_id !== ctx.user.lgu_id) throw notFound('Report not found.');
+    if (!(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]).includes(r.lgu_id)) throw notFound('Report not found.');
     if (['resolved', 'rejected', 'duplicate'].includes(r.status)) {
       throw conflict('Closed reports cannot be edited. Reopen the report first.');
     }
@@ -189,7 +189,7 @@ adminRoutes.patch('/reports/:id', adminOrStaff, async (ctx) => {
       labels.push(key.replace('_id', '').replace('_', ' '));
     }
     if (changes.agency_id) {
-      const [a] = await tx`SELECT name FROM agencies WHERE id = ${changes.agency_id} AND lgu_id = ${ctx.user.lgu_id} AND is_active`;
+      const [a] = await tx`SELECT name FROM agencies WHERE id = ${changes.agency_id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) AND is_active`;
       if (!a) throw badRequest('Choose an active agency.');
     }
     if (!labels.length) return;
@@ -209,7 +209,7 @@ adminRoutes.patch('/reports/:id', adminOrStaff, async (ctx) => {
 adminRoutes.post('/reports/:id/notes', adminOrStaff, async (ctx) => {
   const id = parseId(ctx.params.id, 'report id');
   const body = await readJson(ctx, commentSchema);
-  const [ownedReport] = await sql`SELECT id FROM reports WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id}`;
+  const [ownedReport] = await sql`SELECT id FROM reports WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})`;
   if (!ownedReport) throw notFound('Report not found.');
   await recordEvent(sql, {
     reportId: id,
@@ -235,7 +235,7 @@ adminRoutes.post('/reports/:id/notes', adminOrStaff, async (ctx) => {
 // Dashboard statistics
 // ---------------------------------------------------------------------------
 adminRoutes.get('/stats', adminOrStaff, async (ctx) => {
-  ctx.json(200, await computeStats(ctx.query, ctx.user.lgu_id));
+  ctx.json(200, await computeStats(ctx.query, (ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])));
 });
 
 // ---------------------------------------------------------------------------
@@ -267,21 +267,21 @@ const updateUserSchema = z
 
 const resetSchema = z.object({ temporary_password: password });
 
-async function loadUserForAdmin(db, id, lguId) {
+async function loadUserForAdmin(db, id, lguIds) {
   const [u] = await db`
     SELECT ${userColumns()},
            (SELECT count(*)::int FROM reports WHERE reporter_id = u.id) AS report_count
     FROM users u
     LEFT JOIN maintenance_teams t ON t.id = u.team_id AND t.lgu_id = u.lgu_id
     LEFT JOIN lgus l ON l.id = u.lgu_id
-    WHERE u.id = ${id} AND u.lgu_id = ${lguId}`;
+    WHERE u.id = ${id} AND u.lgu_id = ANY(${Array.isArray(lguIds) ? lguIds : [lguIds]})`;
   if (!u) throw notFound('User not found.');
   return u;
 }
 
 adminRoutes.get('/users', admin, async (ctx) => {
   const { page, pageSize, offset } = pagination(ctx.query, { defaultSize: 20 });
-  const conds = [sql`u.lgu_id = ${ctx.user.lgu_id}`];
+  const conds = [sql`u.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})`];
   if (['citizen', 'admin', 'staff', 'maintenance'].includes(ctx.query.role)) conds.push(sql`u.role = ${ctx.query.role}`);
   if (ctx.query.status === 'active') conds.push(sql`u.is_active`);
   if (ctx.query.status === 'inactive') conds.push(sql`NOT u.is_active`);
@@ -307,7 +307,7 @@ adminRoutes.post('/users', admin, async (ctx) => {
   const body = await readJson(ctx, createUserSchema);
   const teamId = body.role === 'maintenance' ? body.team_id : null;
   if (teamId) {
-    const [t] = await sql`SELECT 1 FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ${ctx.user.lgu_id} AND is_active`;
+    const [t] = await sql`SELECT 1 FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) AND is_active`;
     if (!t) throw badRequest('Choose an active team.');
   }
   const [exists] = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.email}`;
@@ -325,7 +325,7 @@ adminRoutes.post('/users', admin, async (ctx) => {
     details: { email: body.email, role: body.role, team_id: teamId },
     ip: ctx.ip,
   });
-  ctx.json(201, { user: await loadUserForAdmin(sql, u.id, ctx.user.lgu_id) });
+  ctx.json(201, { user: await loadUserForAdmin(sql, u.id, ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]) });
 });
 
 adminRoutes.patch('/users/:id', admin, async (ctx) => {
@@ -347,7 +347,7 @@ adminRoutes.patch('/users/:id', admin, async (ctx) => {
       throw new HttpError(409, 'You cannot remove your own administrator access.', undefined, 'self_lockout');
     }
     if (current.role === 'admin' && current.is_active && (next.role !== 'admin' || !next.is_active)) {
-      const [{ n }] = await tx`SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND lgu_id = ${ctx.user.lgu_id} AND is_active AND id <> ${id}`;
+      const [{ n }] = await tx`SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND lgu_id = ${current.lgu_id} AND is_active AND id <> ${id}`;
       if (n === 0) throw conflict('At least one active administrator is required.');
     }
     const changes = {};
@@ -368,7 +368,7 @@ adminRoutes.patch('/users/:id', admin, async (ctx) => {
     });
     return { changed: true };
   });
-  ctx.json(200, { ...result, user: await loadUserForAdmin(sql, id, ctx.user.lgu_id) });
+  ctx.json(200, { ...result, user: await loadUserForAdmin(sql, id, ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]) });
 });
 
 adminRoutes.post('/users/:id/reset-password', admin, async (ctx) => {
@@ -378,7 +378,7 @@ adminRoutes.post('/users/:id/reset-password', admin, async (ctx) => {
   const hash = await hashPassword(body.temporary_password);
   const rows = await sql`
     UPDATE users SET password_hash = ${hash}, must_change_password = TRUE, updated_at = now()
-    WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id} RETURNING id`;
+    WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) RETURNING id`;
   if (!rows.length) throw notFound('User not found.');
   await destroyUserSessions(id);
   await audit(sql, { actorId: ctx.user.id, action: 'user.reset_password', targetType: 'user', targetId: id, ip: ctx.ip });
@@ -408,7 +408,7 @@ adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
            (SELECT count(*)::int FROM users u WHERE u.team_id = t.id AND u.is_active) AS member_count,
            (SELECT count(*)::int FROM assignments a WHERE a.team_id = t.id AND a.is_active) AS active_tasks
     FROM maintenance_teams t LEFT JOIN agencies ag ON ag.id = t.agency_id AND ag.lgu_id = t.lgu_id
-    WHERE t.lgu_id = ${ctx.user.lgu_id}
+    WHERE t.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})
     ORDER BY t.is_active DESC, t.name`;
   ctx.json(200, { items: rows });
 });
@@ -416,7 +416,7 @@ adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
 adminRoutes.post('/teams', admin, async (ctx) => {
   const b = await readJson(ctx, teamSchema);
   if (b.agency_id) {
-    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ${ctx.user.lgu_id} AND is_active`;
+    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) AND is_active`;
     if (!agency) throw badRequest('Choose an active agency from your LGU.');
   }
   const [t] = await sql`
@@ -436,10 +436,10 @@ adminRoutes.patch('/teams/:id', admin, async (ctx) => {
   const changes = Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined));
   if (!Object.keys(changes).length) throw badRequest('Nothing to update.');
   if (b.agency_id) {
-    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ${ctx.user.lgu_id}`;
+    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})`;
     if (!agency) throw badRequest('Choose an agency from your LGU.');
   }
-  const rows = await sql`UPDATE maintenance_teams SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id} RETURNING id`;
+  const rows = await sql`UPDATE maintenance_teams SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) RETURNING id`;
   if (!rows.length) throw notFound('Team not found.');
   await audit(sql, { actorId: ctx.user.id, action: 'team.update', targetType: 'team', targetId: id, details: changes, ip: ctx.ip });
   ctx.json(200, { ok: true });
@@ -448,7 +448,7 @@ adminRoutes.patch('/teams/:id', admin, async (ctx) => {
 adminRoutes.get('/agencies', adminOrStaff, async (ctx) => {
   const rows = await sql`
     SELECT a.*, (SELECT count(*)::int FROM reports r WHERE r.agency_id = a.id) AS report_count
-    FROM agencies a WHERE a.lgu_id = ${ctx.user.lgu_id} ORDER BY a.is_active DESC, a.name`;
+    FROM agencies a WHERE a.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) ORDER BY a.is_active DESC, a.name`;
   ctx.json(200, { items: rows });
 });
 
@@ -466,7 +466,7 @@ adminRoutes.patch('/agencies/:id', admin, async (ctx) => {
   const id = parseId(ctx.params.id, 'agency id');
   const b = await readJson(ctx, agencySchema.partial());
   const changes = Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined));
-  const rows = await sql`UPDATE agencies SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id} RETURNING id`;
+  const rows = await sql`UPDATE agencies SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) RETURNING id`;
   if (!rows.length) throw notFound('Agency not found.');
   await audit(sql, { actorId: ctx.user.id, action: 'agency.update', targetType: 'agency', targetId: id, details: changes, ip: ctx.ip });
   ctx.json(200, { ok: true });
@@ -511,7 +511,7 @@ adminRoutes.get('/audit', admin, async (ctx) => {
     SELECT l.id, l.action, l.target_type, l.target_id, l.details, l.ip, l.created_at, u.full_name AS actor_name,
            count(*) OVER()::int AS total
     FROM audit_logs l LEFT JOIN users u ON u.id = l.actor_id
-    WHERE l.lgu_id = ${ctx.user.lgu_id}
+    WHERE l.lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})
     ORDER BY l.created_at DESC, l.id DESC
     LIMIT ${pageSize} OFFSET ${offset}`;
   ctx.json(200, { items: rows.map(({ total, ...r }) => r), total: rows[0]?.total ?? 0, page, pageSize });
