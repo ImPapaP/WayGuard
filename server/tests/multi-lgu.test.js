@@ -96,6 +96,17 @@ test('admin report lists and private report details are isolated by LGU', async 
 
   const tenantStaffUsers = await tenantStaff.get('/api/admin/users');
   assert.equal(tenantStaffUsers.status, 403, 'LGU staff cannot manage user accounts');
+
+  const tenantUsers = await tenantAdmin.get('/api/admin/users');
+  assert.equal(tenantUsers.status, 200);
+  assert.ok(tenantUsers.data.items.every((user) => user.lgu_id === lgu.id));
+  assert.ok(!tenantUsers.data.items.some((user) => user.id === defaultAdmin.user?.id));
+
+  const crossTenantUserEdit = await tenantAdmin.patch(`/api/admin/users/${defaultAdmin.user?.id}`, {
+    full_name: 'Should Not Be Changed',
+  });
+  assert.equal(crossTenantUserEdit.status, 404, 'an LGU admin cannot edit accounts from a different tenant');
+
   const adminTenantUsers = await defaultAdmin.get('/api/admin/users');
   assert.equal(adminTenantUsers.status, 200);
   assert.ok(adminTenantUsers.data.items.every((user) => user.lgu_id === defaultAdmin.user?.lgu_id));
