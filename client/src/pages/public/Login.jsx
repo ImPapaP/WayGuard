@@ -25,13 +25,6 @@ const DESTINATION = {
   platform_admin: { label: 'Platform administrator', place: 'LGU management', icon: LuShieldCheck },
 };
 
-// Demo accounts listed only in the self-contained browser preview.
-const PREVIEW_ACCOUNTS = [
-  ['maria@demo.wayguard.test', 'Citizen'],
-  ['admin@demo.wayguard.test', 'LGU administrator'],
-  ['crew.alpha@demo.wayguard.test', 'Road crew'],
-];
-
 export default function Login() {
   useDocumentTitle('Sign in');
   const { user, setUser, refreshConfig } = useAuth();
@@ -92,18 +85,10 @@ export default function Login() {
 
   return (
     <AuthLayout>
-      <h1>Sign in</h1>
-      <p className="muted">One sign-in for everyone. Wayguard recognises your account and opens the right place.</p>
-      <ul className="signin-roles" aria-label="Where you will go">
-        {Object.entries(DESTINATION).map(([key, d]) => (
-          <li key={key}>
-            <d.icon aria-hidden />
-            <span>
-              <strong>{d.label}</strong> → {d.place}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="signin-heading">
+        <h1>Welcome back</h1>
+        <p className="muted">Sign in to continue to your Wayguard account.</p>
+      </div>
       <form className="form-stack" onSubmit={submit} noValidate>
         {error && <Alert type="error">{error}</Alert>}
         <TextField
@@ -134,23 +119,9 @@ export default function Login() {
       <p className="auth__switch">
         New to Wayguard? <Link to={`/register${query.next ? `?next=${encodeURIComponent(query.next)}` : ''}`}>Create a citizen account</Link>
       </p>
-      <p className="auth__switch small">
-        Forgot your password? Ask your LGU administrator to reset it.
+      <p className="auth__switch small" id="forgot-password">
+        Forgot your password? Contact your LGU administrator to reset it.
       </p>
-      {__WG_PREVIEW__ && (
-        <div className="signin-demo">
-          <p className="small">
-            <strong>Preview demo accounts</strong> (password <code>preview</code>). Tap one to fill the form:
-          </p>
-          <div className="cluster">
-            {PREVIEW_ACCOUNTS.map(([email, label]) => (
-              <button key={email} type="button" className="chip" onClick={() => setForm({ email, password: 'preview' })}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </AuthLayout>
   );
 }
