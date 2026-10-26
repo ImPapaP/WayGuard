@@ -1,7 +1,7 @@
 // User account management: create staff accounts, change roles and teams,
 // deactivate accounts and reset passwords. Every change is audit-logged.
 import { useState } from 'react';
-import { LuUserPlus, LuSearch, LuKeyRound, LuPencil, LuRefreshCw } from 'react-icons/lu';
+import { LuUserPlus, LuSearch, LuKeyRound, LuPencil, LuRefreshCw, LuUsers, LuMapPin, LuShieldCheck, LuInfo } from 'react-icons/lu';
 import { api, qs } from '../../lib/api.js';
 import { useApi, useDebounced, useDocumentTitle } from '../../lib/hooks.js';
 import { useAuth } from '../../lib/auth.jsx';
@@ -20,31 +20,110 @@ function tempPassword() {
 
 const ROLE_OPTIONS = Object.entries(ROLES).map(([value, label]) => ({ value, label }));
 
-function UserModal({ user, teams, jurisdictions, onClose, onSaved }) {
+function AccountFormIntro({ icon: Icon, eyebrow, title, children }) {
+  return (
+    <div className="workspace-form__intro">
+      <div className="workspace-form__icon"><Icon aria-hidden /></div>
+      <div className="workspace-form__intro-copy">
+        <p className="workspace-form__eyebrow">{eyebrow}</p>
+        <h3>{title}</h3>
+        <p>{children}</p>
+      </div>
+    </div>
+  );
+}
+
+function AccountScope({ lgu }) {
+  const level = (lgu?.jurisdiction_level || 'municipality').replaceAll('_', ' ');
+  const location = [lgu?.city, lgu?.province].filter(Boolean).join(', ');
+  return (
+    <div className="workspace-form__scope">
+      <LuMapPin aria-hidden />
+      <div>
+        <strong>{lgu?.name || 'Primary assigned LGU'}</strong>
+        <p>{[level, location].filter(Boolean).join(' · ') || 'This account is created inside your assigned jurisdiction.'}</p>
+      </div>
+    </div>
+  );
+}
+
+const ROLE_GUIDANCE = {
+  citizen: 'Can submit reports and follow their own report history. This account does not get administrative tools.',
+  admin: 'Can manage reports, teams, agencies, and users within the selected jurisdiction and its descendant LGUs.',
+  staff: 'Can review reports and handle assigned operational work within the selected jurisdiction, but cannot manage user accounts.',
+  maintenance: 'Can view and update repair tasks assigned to the selected active team. The team and account must belong to the same LGU.',
+};
+
+function UserModal({ user, teams, jurisdictions, primaryLguId, onClose, onSaved }) {
   const toast = useToast();
   const isNew = !user;
-  const [form, setForm] = useState(
+  const [form, setForm] = useState(() => (
     isNew
-      ? { full_name: '', email: '', phone: '', role: 'maintenance', lgu_id: '', team_id: '', temporary_password: tempPassword() }
-      : { full_name: user.full_name, phone: user.phone || '', role: user.role, lgu_id: user.lgu_id ? String(user.lgu_id) : '', team_id: user.team_id ? String(user.team_id) : '', is_active: user.is_active },
-  );
+      ? { full_name: '', email: '', phone: '', role: 'staff', lgu_id: String(primaryLguId || jurisdictions[0]?.id || ''), team_id: '', temporary_password: tempPassword() }
+      : { full_name: user.full_name, phone: user.phone || '', role: user.role, lgu_id: user.lgu_id ? String(user.lgu_id) : '', team_id: user.team_id ? String(user.team_id) : '', is_active: user.is_active }
+  ));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
-  async function save() {
-    setBusy(true);
+  const set = (key) => (event) => setForm((old) => ({ ...old, [key]: event.target.type === 'checkbox' ? event.target.checked : event.target.value }));
+  const lguId = Number(form.lgu_id || primaryLguId || jurisdictions[0]?.id);
+  const selectedLgu = jurisdictions.find((lgu) => Number(lgu.id) === lguId);
+  const availableTeams = teams.filter((team) =>
+    Number(team.lgu_id) === lguId && (team.is_active || String(team.id) === form.team_id),
+  );
+
+  function changeJurisdiction(value) {
+    setForm((old) => ({ ...old, lgu_id: value, team_id: '' }));
     setError(null);
+  }
+
+  function changeRole(value) {
+    setForm((old) => ({ ...old, role: value, team_id: value === 'maintenance' ? old.team_id : '' }));
+    setError(null);
+  }
+
+  async function save() {
+    setError(null);
+    if (!form.full_name.trim()) {
+      setError({ message: 'Enter the account holder’s full name.', fields: { full_name: 'Full name is required.' } });
+      return;
+    }
+    if (isNew && !form.email.trim()) {
+      setError({ message: 'Enter an e-mail address for the new account.', fields: { email: 'E-mail is required.' } });
+      return;
+    }
+    if (!lguId || !selectedLgu) {
+      setError({ message: 'Choose a jurisdiction available to your administrator account.' });
+      return;
+    }
+    if (form.role === 'maintenance') {
+      if (!form.team_id) {
+        setError({ message: 'Choose an active team for this maintenance account.', fields: { team_id: 'Choose a team.' } });
+        return;
+      }
+      if (!availableTeams.some((team) => String(team.id) === form.team_id)) {
+        setError({ message: 'Choose a team that belongs to the selected jurisdiction.', fields: { team_id: 'Team and account jurisdiction must match.' } });
+        return;
+      }
+    }
+    if (isNew && !form.temporary_password) {
+      setError({ message: 'A temporary password is required.', fields: { temporary_password: 'Enter a temporary password.' } });
+      return;
+    }
+
+    setBusy(true);
     const body = {
       ...form,
+      full_name: form.full_name.trim(),
+      email: form.email?.trim(),
       phone: form.phone || null,
       team_id: form.role === 'maintenance' && form.team_id ? Number(form.team_id) : null,
     };
-    if (isNew) body.lgu_id = form.lgu_id ? Number(form.lgu_id) : undefined;
+    if (isNew) body.lgu_id = lguId;
     else delete body.lgu_id;
     try {
       if (isNew) await api.post('/api/admin/users', body);
-      else await api.patch(`/api/admin/users/${user.id}`, body);
-      toast(isNew ? `Account created for ${form.full_name}.` : 'User updated.');
+      else await api.patch('/api/admin/users/' + user.id, body);
+      toast(isNew ? 'New account created. Share its temporary password securely.' : 'User access details updated.');
       onSaved();
     } catch (err) {
       setError(err);
@@ -52,57 +131,105 @@ function UserModal({ user, teams, jurisdictions, onClose, onSaved }) {
       setBusy(false);
     }
   }
+
   const f = error?.fields || {};
   return (
     <Modal
-      title={isNew ? 'Add a staff account' : `Edit ${user.full_name}`}
+      title={isNew ? 'New account' : 'Edit account'}
+      className="modal--workspace"
       onClose={onClose}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
           <Button variant="navy" loading={busy} onClick={save}>
             {isNew ? 'Create account' : 'Save changes'}
           </Button>
         </>
       }
     >
-      <div className="form-stack">
-        {error && <Alert type="error">{error.message}</Alert>}
-        <TextField label="Full name" value={form.full_name} onChange={set('full_name')} error={f.full_name} />
-        {isNew && <TextField label="E-mail" type="email" value={form.email} onChange={set('email')} error={f.email} />}
-        <TextField label="Phone" optional type="tel" value={form.phone} onChange={set('phone')} error={f.phone} />
-        {isNew && jurisdictions.length > 1 && <SelectField label="Jurisdiction" value={form.lgu_id} onChange={set('lgu_id')} placeholder="Use my primary LGU" optional options={jurisdictions.map((lgu) => ({ value: String(lgu.id), label: `${lgu.name} — ${(lgu.jurisdiction_level || 'municipality').replaceAll('_', ' ')}` }))} />}
-        <div className="form-row form-row--2">
-          <SelectField label="Role" value={form.role} onChange={set('role')} options={ROLE_OPTIONS} error={f.role} />
-          {form.role === 'maintenance' && (
+      <div className="workspace-form">
+        <AccountFormIntro
+          icon={LuUserPlus}
+          eyebrow={isNew ? 'Account setup' : 'Account settings'}
+          title={isNew ? 'Create a WayGuard account' : user.full_name}
+        >
+          {isNew
+            ? 'Add someone to your operational workspace. Their selected role controls what they can access, and new accounts must change their temporary password at first sign-in.'
+            : 'Update the account details and access role. Role, team, or active-status changes will sign the account out everywhere.'}
+        </AccountFormIntro>
+
+        {error && <Alert type="error" title="Could not save account">{error.message}</Alert>}
+
+        <section className="workspace-form__section">
+          <div className="workspace-form__section-head">
+            <span className="workspace-form__section-icon"><LuUsers aria-hidden /></span>
+            <div><h3>Personal details</h3><p>Use the name and contact details staff will recognize.</p></div>
+          </div>
+          <TextField label="Full name" value={form.full_name} onChange={set('full_name')} placeholder="e.g. Juan Dela Cruz" autoComplete="name" required error={f.full_name} />
+          {isNew && <TextField label="E-mail address" type="email" value={form.email} onChange={set('email')} placeholder="name@example.gov.ph" autoComplete="email" required error={f.email} />}
+          <TextField label="Phone number" optional type="tel" value={form.phone} onChange={set('phone')} placeholder="e.g. 0917 123 4567" autoComplete="tel" error={f.phone} />
+        </section>
+
+        <section className="workspace-form__section">
+          <div className="workspace-form__section-head">
+            <span className="workspace-form__section-icon"><LuShieldCheck aria-hidden /></span>
+            <div><h3>Role and access</h3><p>Choose the role that matches the person's responsibilities.</p></div>
+          </div>
+          <SelectField label="Account role" value={form.role} onChange={(event) => changeRole(event.target.value)} options={ROLE_OPTIONS} required error={f.role} />
+          <div className="workspace-form__role"><LuInfo aria-hidden /><div><strong>{ROLE_OPTIONS.find((item) => item.value === form.role)?.label || 'Account role'}</strong><br />{ROLE_GUIDANCE[form.role]}</div></div>
+          {isNew && (jurisdictions.length > 1 ? (
             <SelectField
-              label="Team"
-              value={form.team_id}
-              onChange={set('team_id')}
-              placeholder="Choose a team"
-              error={f.team_id}
-              options={teams.filter((t) => t.is_active).map((t) => ({ value: String(t.id), label: t.name }))}
+              label="Operating jurisdiction"
+              value={form.lgu_id}
+              onChange={(event) => changeJurisdiction(event.target.value)}
+              options={jurisdictions.map((lgu) => ({ value: String(lgu.id), label: lgu.name + ' — ' + (lgu.jurisdiction_level || 'municipality').replaceAll('_', ' ') + (lgu.city || lgu.province ? ' · ' + [lgu.city, lgu.province].filter(Boolean).join(', ') : '') }))}
+              hint="This is the LGU that owns the account. Administrators may be able to work across descendant LGUs."
+              required
+              error={f.lgu_id}
             />
+          ) : <AccountScope lgu={selectedLgu} />)}
+          {!isNew && <AccountScope lgu={jurisdictions.find((lgu) => Number(lgu.id) === Number(user.lgu_id))} />}
+
+          {form.role === 'maintenance' && (
+            <div className="workspace-form__section" style={{ gap: 12 }}>
+              <SelectField
+                label="Assigned maintenance team"
+                value={form.team_id}
+                onChange={set('team_id')}
+                placeholder="Choose an active team"
+                options={availableTeams.map((team) => ({ value: String(team.id), label: team.name + (team.lgu_name ? ' · ' + team.lgu_name : '') }))}
+                required
+                error={f.team_id}
+                hint="Only active teams within this account's jurisdiction are available."
+              />
+              {!availableTeams.length && <Alert type="warn" title="No active team in this jurisdiction">Create a team first from <Link to="/admin/teams">Teams and agencies</Link>, then return here to add the maintenance account.</Alert>}
+            </div>
           )}
-        </div>
+        </section>
+
         {isNew ? (
-          <TextField
-            label="Temporary password"
-            hint="Give this to the person. They must choose their own password when they first sign in."
-            value={form.temporary_password}
-            onChange={set('temporary_password')}
-            error={f.temporary_password}
-          />
+          <section className="workspace-form__section">
+            <div className="workspace-form__section-head">
+              <span className="workspace-form__section-icon"><LuKeyRound aria-hidden /></span>
+              <div><h3>Temporary sign-in password</h3><p>Share this password privately with the new account holder.</p></div>
+            </div>
+            <div className="workspace-form__password">
+              <TextField label="Temporary password" value={form.temporary_password} onChange={set('temporary_password')} autoComplete="new-password" required error={f.temporary_password} hint="At least 8 characters, including a letter and a number." />
+              <Button variant="secondary" onClick={() => setForm((old) => ({ ...old, temporary_password: tempPassword() }))} disabled={busy}><LuRefreshCw aria-hidden /> Generate</Button>
+            </div>
+            <div className="workspace-form__hint"><LuInfo aria-hidden /> The account holder must choose a new password at first sign-in. Do not send temporary passwords in public or group chats.</div>
+          </section>
         ) : (
-          <label className="checkline">
-            <input type="checkbox" checked={form.is_active} onChange={set('is_active')} />
-            <span>
-              Account is active
-              <span className="field__hint" style={{ display: 'block' }}>
-                Deactivated users are signed out and cannot sign in. Their reports are kept.
-              </span>
-            </span>
-          </label>
+          <section className="workspace-form__section">
+            <div className="workspace-form__section-head">
+              <span className="workspace-form__section-icon"><LuShieldCheck aria-hidden /></span>
+              <div><h3>Account status</h3><p>Inactive accounts are blocked from signing in; their existing records remain preserved.</p></div>
+            </div>
+            <label className="checkline">
+              <input type="checkbox" checked={form.is_active} onChange={set('is_active')} />
+              <span><strong>Account is active</strong><span className="field__hint" style={{ display: 'block' }}>Turning this off revokes the user's current sessions.</span></span>
+            </label>
+          </section>
         )}
       </div>
     </Modal>
@@ -158,16 +285,17 @@ export default function Users() {
   const { data, error, loading, reload } = useApi(`/api/admin/users${qs({ q, role: query.role, status: query.status, page: query.page })}`);
   const { data: teams } = useApi('/api/admin/teams');
   const { data: jurisdictions } = useApi('/api/admin/jurisdictions');
+  const primaryLguId = me?.lgu_id == null ? '' : String(me.lgu_id);
 
   return (
     <div className="container page">
       <div className="page-head">
         <div>
           <h1>Users</h1>
-          <p>Citizens register themselves. Create accounts for LGU administrators and maintenance personnel here.</p>
+          <p>Create accounts with a role, jurisdiction and team assignment that match the responsibilities they will have in WayGuard.</p>
         </div>
         <Button variant="primary" onClick={() => setModal({ type: 'new' })} disabled={!teams || !jurisdictions}>
-          <LuUserPlus aria-hidden /> Add staff account
+          <LuUserPlus aria-hidden /> New account
         </Button>
       </div>
       <div className="filters panel">
@@ -258,8 +386,8 @@ export default function Users() {
           </>
         )}
       </div>
-      {modal?.type === 'new' && teams && jurisdictions && <UserModal teams={teams.items} jurisdictions={jurisdictions.items} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
-      {modal?.type === 'edit' && teams && jurisdictions && <UserModal user={modal.user} teams={teams.items} jurisdictions={jurisdictions.items} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {modal?.type === 'new' && teams && jurisdictions && <UserModal teams={teams.items} jurisdictions={jurisdictions.items} primaryLguId={primaryLguId} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {modal?.type === 'edit' && teams && jurisdictions && <UserModal user={modal.user} teams={teams.items} jurisdictions={jurisdictions.items} primaryLguId={primaryLguId} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
       {modal?.type === 'reset' && <ResetModal user={modal.user} onClose={() => setModal(null)} />}
     </div>
   );
