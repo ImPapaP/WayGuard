@@ -51,7 +51,7 @@ function ReportRedirect() {
   const { user } = useAuth();
   if (user === undefined) return <Loading />;
   if (!user) return <Navigate to={`/login?next=/r/${id}`} />;
-  const path = { citizen: `/app/reports/${id}`, admin: `/admin/reports/${id}`, maintenance: `/crew/tasks/${id}`, platform_admin: '/platform/lgus' }[user.role];
+  const path = { citizen: `/app/reports/${id}`, admin: `/admin/reports/${id}`, staff: `/admin/reports/${id}`, maintenance: `/crew/tasks/${id}`, platform_admin: '/platform/lgus' }[user.role];
   return <Navigate to={path} />;
 }
 
@@ -67,6 +67,11 @@ const crew = (el) => (
 );
 const admin = (el) => (
   <Protected roles={['admin']}>
+    <AdminShell>{el}</AdminShell>
+  </Protected>
+);
+const adminStaff = (el) => (
+  <Protected roles={['admin', 'staff']}>
     <AdminShell>{el}</AdminShell>
   </Protected>
 );
@@ -95,17 +100,17 @@ const routes = [
   { path: '/crew/notifications', element: crew(<Notifications />) },
   { path: '/crew/profile', element: crew(<Profile />) },
 
-  { path: '/admin', element: admin(<Dashboard />) },
-  { path: '/admin/reports', element: admin(<AdminReports />) },
-  { path: '/admin/reports/:id', element: admin(<ReportReview />) },
-  { path: '/admin/map', element: admin(<AdminMap />) },
-  { path: '/admin/exports', element: admin(<Exports />) },
+  { path: '/admin', element: adminStaff(<Dashboard />) },
+  { path: '/admin/reports', element: adminStaff(<AdminReports />) },
+  { path: '/admin/reports/:id', element: adminStaff(<ReportReview />) },
+  { path: '/admin/map', element: adminStaff(<AdminMap />) },
+  { path: '/admin/exports', element: adminStaff(<Exports />) },
   { path: '/admin/users', element: admin(<Users />) },
   { path: '/admin/teams', element: admin(<Teams />) },
   { path: '/admin/settings', element: admin(<Settings />) },
   { path: '/admin/activity', element: admin(<Activity />) },
-  { path: '/admin/notifications', element: admin(<Notifications />) },
-  { path: '/admin/profile', element: admin(<Profile />) },
+  { path: '/admin/notifications', element: adminStaff(<Notifications />) },
+  { path: '/admin/profile', element: adminStaff(<Profile />) },
 ];
 
 // `banner` is only used by the self-contained browser preview build.
