@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LuEye, LuEyeOff } from 'react-icons/lu';
+import { LuEye, LuEyeOff, LuShieldCheck, LuMapPin, LuCamera } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { useDocumentTitle } from '../../lib/hooks.js';
@@ -60,9 +60,17 @@ export default function Register() {
 
   return (
     <AuthLayout>
-      <h1>Create a citizen account</h1>
-      <p className="muted">You need an account so the LGU can send you updates about your reports.</p>
-      <form className="form-stack" onSubmit={submit} noValidate>
+      <div className="register-heading">
+        <span className="register-heading__icon" aria-hidden><LuShieldCheck /></span>
+        <p className="eyebrow">Join your local community</p>
+        <h1>Create your account</h1>
+        <p className="muted">Report road issues and follow updates from your local government in one place.</p>
+      </div>
+      <div className="register-benefits" aria-label="Account benefits">
+        <span><LuCamera aria-hidden /> Submit pothole photos</span>
+        <span><LuMapPin aria-hidden /> Track reports near you</span>
+      </div>
+      <form className="form-stack register-form" onSubmit={submit} noValidate>
         {error && <Alert type="error">{error}</Alert>}
         <TextField label="Full name" autoComplete="name" value={form.full_name} onChange={set('full_name')} error={errors.full_name} />
         <TextField
