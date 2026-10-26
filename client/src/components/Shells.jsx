@@ -152,11 +152,11 @@ export function PublicHeader() {
           </NavLink>
           {user?.role === 'platform_admin' ? (
             <>
-              <Link to="/platform/lgus" className="btn btn--secondary btn--sm">
-                Management workspace
+              <Link to="/platform/lgus" className={`btn btn--sm ${pathname === '/platform/lgus' ? 'btn--navy' : 'btn--secondary'}`} aria-current={pathname === '/platform/lgus' ? 'page' : undefined}>
+                <span className="hide-sm">Management workspace</span><span className="show-sm">Management</span>
               </Link>
-              <Link to="/platform/accounts" className="btn btn--navy btn--sm" aria-current={pathname === '/platform/accounts' ? 'page' : undefined}>
-                Accounts &amp; assignments
+              <Link to="/platform/accounts" className={`btn btn--sm ${pathname === '/platform/accounts' ? 'btn--navy' : 'btn--secondary'}`} aria-current={pathname === '/platform/accounts' ? 'page' : undefined}>
+                <span className="hide-sm">Accounts &amp; assignments</span><span className="show-sm">Accounts</span>
               </Link>
             </>
           ) : user ? (

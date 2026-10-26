@@ -385,9 +385,9 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
   const [lgu] = await sql`
     UPDATE lgus SET
       is_active = COALESCE(${body.is_active ?? null}, is_active),
-      jurisdiction_boundary = CASE WHEN ${body.jurisdiction_boundary !== undefined} THEN ${body.jurisdiction_boundary === null ? null : sql.json(body.jurisdiction_boundary)} ELSE jurisdiction_boundary END,
+      jurisdiction_boundary = CASE WHEN ${body.jurisdiction_boundary !== undefined} THEN ${body.jurisdiction_boundary ? sql.json(body.jurisdiction_boundary) : null} ELSE jurisdiction_boundary END,
       jurisdiction_level = COALESCE(${body.jurisdiction_level ?? null}, jurisdiction_level),
-      parent_lgu_id = CASE WHEN ${body.parent_lgu_id !== undefined} THEN ${body.parent_lgu_id} ELSE parent_lgu_id END,
+      parent_lgu_id = CASE WHEN ${body.parent_lgu_id !== undefined} THEN ${body.parent_lgu_id ?? null}::int ELSE parent_lgu_id END,
       updated_at = now()
     WHERE id = ${id}
     RETURNING id, name, slug, city, province, jurisdiction_level, parent_lgu_id, is_active, created_at, jurisdiction_boundary`;

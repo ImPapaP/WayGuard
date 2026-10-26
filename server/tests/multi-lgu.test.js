@@ -102,6 +102,29 @@ test('platform administrators can create an account at a selected PSGC area with
   assert.ok(!scope.data.items.some((item) => item.id === pampanga.id), 'province assignment excludes sibling provinces');
 });
 
+test('platform admins can deactivate, reactivate and set the boundary of one field at a time', async () => {
+  const sql = getSql();
+  const [tarlac] = await sql`SELECT id, parent_lgu_id FROM lgus WHERE psgc_code = '0306900000'`;
+  assert.ok(tarlac, 'Tarlac province should exist in PSGC');
+
+  const off = await platform.patch('/api/platform/lgus/' + tarlac.id, { is_active: false });
+  assert.equal(off.status, 200, JSON.stringify(off.data));
+  assert.equal(off.data.lgu.is_active, false);
+  assert.equal(off.data.lgu.parent_lgu_id, tarlac.parent_lgu_id, 'placement is unchanged');
+  const on = await platform.patch('/api/platform/lgus/' + tarlac.id, { is_active: true });
+  assert.equal(on.status, 200, JSON.stringify(on.data));
+  assert.equal(on.data.lgu.is_active, true);
+
+  const polygon = { type: 'Polygon', coordinates: [[[120.5, 15.4], [120.7, 15.4], [120.7, 15.6], [120.5, 15.4]]] };
+  const withBoundary = await platform.patch('/api/platform/lgus/' + tarlac.id, { jurisdiction_boundary: polygon });
+  assert.equal(withBoundary.status, 200, JSON.stringify(withBoundary.data));
+  assert.deepEqual(withBoundary.data.lgu.jurisdiction_boundary, polygon);
+  const cleared = await platform.patch('/api/platform/lgus/' + tarlac.id, { jurisdiction_boundary: null });
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.data));
+  assert.equal(cleared.data.lgu.jurisdiction_boundary, null);
+  assert.equal(cleared.data.lgu.parent_lgu_id, tarlac.parent_lgu_id);
+});
+
 test('platform admins provision an LGU and its first administrator', async () => {
   const blocked = await defaultAdmin.get('/api/platform/lgus');
   assert.equal(blocked.status, 403, 'an LGU admin cannot manage platform tenants');
