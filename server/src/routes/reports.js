@@ -30,6 +30,24 @@ import {
 } from '../services/reports.js';
 import { notifyUsers, adminIds } from '../services/notifications.js';
 
+
+function pointInRing(point, ring) {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    const crosses = (yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+function insideLguBoundary(boundary, lng, lat) {
+  if (!boundary) return true; // Legacy LGUs remain usable until a boundary is configured.
+  const geometry = boundary.type === 'Feature' ? boundary.geometry : boundary;
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  return polygons.some((rings) => pointInRing([lng, lat], rings[0]) && !rings.slice(1).some((hole) => pointInRing([lng, lat], hole)));
+}
+
 const submitLimiter = new RateLimiter({ windowMs: 60 * 60 * 1000, max: 10, name: 'reports submitted' });
 
 const hazardsField = z
@@ -85,6 +103,11 @@ reportRoutes.post('/', requireRole('citizen'), async (ctx) => {
     limit: settings.max_photos_per_report * (config.maxPhotoBytes + 64 * 1024) + 256 * 1024,
   });
   const data = createSchema.parse(fields);
+  const [lgu] = await sql`SELECT name, jurisdiction_boundary FROM lgus WHERE id = ${ctx.user.lgu_id} AND is_active`;
+  if (!lgu) throw conflict('Your LGU workspace is inactive. Contact the platform administrator.');
+  if (!insideLguBoundary(lgu.jurisdiction_boundary, data.longitude, data.latitude)) {
+    throw conflict(`This location is outside ${lgu.name}'s assigned jurisdiction. Select a pothole location inside your LGU boundary.`);
+  }
   const photos = validateFileList(files.photos, { min: 1, max: settings.max_photos_per_report });
 
   // Prevent the same person from filing the same pothole twice.
