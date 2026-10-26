@@ -317,13 +317,19 @@ adminRoutes.get('/users', admin, async (ctx) => {
 
 adminRoutes.post('/users', admin, async (ctx) => {
   const body = await readJson(ctx, createUserSchema);
-  const lguId = body.lgu_id ?? ctx.user.lgu_id;
-  if (!(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]).includes(lguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
+  const scope = ctx.user.accessible_lgu_ids || [ctx.user.lgu_id];
+  let lguId = body.lgu_id ?? ctx.user.lgu_id;
   const teamId = body.role === 'maintenance' ? body.team_id : null;
+  if (body.role === 'maintenance' && !teamId) throw badRequest('Maintenance personnel must belong to a team.');
   if (teamId) {
-    const [t] = await sql`SELECT 1 FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ${lguId} AND is_active`;
-    if (!t) throw badRequest('Choose an active team.');
+    const [team] = await sql`SELECT id, lgu_id FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ANY(${scope}) AND is_active`;
+    if (!team) throw badRequest('Choose an active team within your assigned jurisdiction.');
+    if (body.lgu_id !== undefined && body.lgu_id !== team.lgu_id) throw badRequest('The selected team and account jurisdiction must match.');
+    if (body.lgu_id === undefined) lguId = team.lgu_id;
   }
+  if (!scope.includes(lguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
+  const [activeLgu] = await sql`SELECT id FROM lgus WHERE id = ${lguId} AND is_active`;
+  if (!activeLgu) throw badRequest('Choose an active jurisdiction.');
   const [exists] = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.email}`;
   if (exists) throw conflict('An account with this e-mail already exists.');
   const hash = await hashPassword(body.temporary_password);
@@ -375,6 +381,21 @@ adminRoutes.patch('/users/:id', admin, async (ctx) => {
       if (next[key] !== current[key]) changes[key] = next[key];
     }
     if (!Object.keys(changes).length) return { changed: false };
+    if (current.role !== 'admin' && next.role === 'admin') {
+      const [assignment] = await tx`
+        INSERT INTO admin_jurisdiction_assignments (user_id, lgu_id, assigned_by)
+        VALUES (${id}, ${current.lgu_id}, ${ctx.user.id})
+        ON CONFLICT (user_id, lgu_id) DO NOTHING RETURNING lgu_id`;
+      if (assignment) await tx`
+        INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+        VALUES (${id}, ${current.lgu_id}, 'assigned', ${ctx.user.id}, ${tx.json({ source: 'local_role_change' })})`;
+    }
+    if (current.role === 'admin' && next.role !== 'admin') {
+      const assignments = await tx`DELETE FROM admin_jurisdiction_assignments WHERE user_id = ${id} RETURNING lgu_id`;
+      for (const assignment of assignments) await tx`
+        INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+        VALUES (${id}, ${assignment.lgu_id}, 'revoked', ${ctx.user.id}, ${tx.json({ source: 'local_role_change' })})`;
+    }
     await tx`UPDATE users SET ${tx(changes)}, updated_at = now() WHERE id = ${id}`;
     // Role or access changes take effect immediately.
     if ('role' in changes || 'is_active' in changes || 'team_id' in changes) await destroyUserSessions(id, null, tx);
@@ -437,14 +458,19 @@ adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
 
 adminRoutes.post('/teams', admin, async (ctx) => {
   const b = await readJson(ctx, teamSchema);
-  const targetLguId = b.lgu_id ?? ctx.user.lgu_id;
-  if (!(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]).includes(targetLguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
+  const scope = ctx.user.accessible_lgu_ids || [ctx.user.lgu_id];
+  let targetLguId = b.lgu_id ?? ctx.user.lgu_id;
+  let selectedAgency = null;
+  if (b.agency_id) {
+    [selectedAgency] = await sql`SELECT id, lgu_id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ANY(${scope}) AND is_active`;
+    if (!selectedAgency) throw badRequest('Choose an active agency within your assigned jurisdiction.');
+    if (b.lgu_id !== undefined && b.lgu_id !== selectedAgency.lgu_id) throw badRequest('The team and agency must belong to the same jurisdiction.');
+    if (b.lgu_id === undefined) targetLguId = selectedAgency.lgu_id;
+  }
+  if (!scope.includes(targetLguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
   const [targetLgu] = await sql`SELECT id FROM lgus WHERE id = ${targetLguId} AND is_active`;
   if (!targetLgu) throw badRequest('Choose an active jurisdiction.');
-  if (b.agency_id) {
-    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ${targetLguId} AND is_active`;
-    if (!agency) throw badRequest('Choose an active agency from your LGU.');
-  }
+  if (selectedAgency && selectedAgency.lgu_id !== targetLguId) throw badRequest('The team and agency must belong to the same jurisdiction.');
   const [t] = await sql`
     INSERT INTO maintenance_teams (lgu_id, name, agency_id, description, is_active)
     VALUES (${targetLguId}, ${b.name}, ${b.agency_id ?? null}, ${b.description}, ${b.is_active ?? true}) RETURNING id`;
