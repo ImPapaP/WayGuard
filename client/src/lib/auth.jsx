@@ -4,7 +4,7 @@ import { api, onAuthError } from './api.js';
 
 const AuthContext = createContext(null);
 
-export const HOME_BY_ROLE = { citizen: '/app', admin: '/admin', maintenance: '/crew' };
+export const HOME_BY_ROLE = { citizen: '/app', admin: '/admin', maintenance: '/crew', platform_admin: '/platform/lgus' };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined); // undefined = still loading
