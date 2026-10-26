@@ -2,7 +2,7 @@
   "name": "wayguard",
   "version": "1.0.0",
   "private": true,
-  "description": "Wayguard \u2014 Road Pothole Reporting and Monitoring System (IT 305 final project)",
+  "description": "Wayguard — Road Pothole Reporting and Monitoring System (IT 305 final project)",
   "license": "UNLICENSED",
   "workspaces": [
     "server",
@@ -25,6 +25,7 @@
     "test:e2e": "node tests/e2e/run.mjs",
     "test:e2e:map": "node tests/e2e/vector-map.mjs",
     "test:e2e:google": "node tests/e2e/google-maps.mjs",
-    "first-run": "node scripts/first-run.mjs"
+    "first-run": "node scripts/first-run.mjs",
+    "create-platform-admin": "npm run create-platform-admin -w server --"
   }
 }
