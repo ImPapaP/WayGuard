@@ -65,8 +65,6 @@ export default function Dashboard() {
         <Loading />
       ) : (
         <div className="stack stack--lg">
-          {s.demo_reports > 0 && (
-          )}
 
           <section aria-label="Work queues">
             <ol className="queue">
