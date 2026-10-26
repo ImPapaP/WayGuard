@@ -120,7 +120,10 @@ export default function Login() {
         New to Wayguard? <Link to={`/register${query.next ? `?next=${encodeURIComponent(query.next)}` : ''}`}>Create a citizen account</Link>
       </p>
       <p className="auth__switch small" id="forgot-password">
-        Forgot your password? Contact your LGU administrator to reset it.
+        Forgot your password? Please contact your LGU administrator to reset it.
+      </p>
+      <p className="auth__switch auth__return-home">
+        <Link to="/">← Return to landing page</Link>
       </p>
     </AuthLayout>
   );
