@@ -68,8 +68,8 @@ authRoutes.post('/register', async (ctx) => {
         OR (NOT is_directory_node AND city IS NOT NULL))`
     : await sql`SELECT id FROM lgus WHERE is_active
       AND ((is_directory_node AND jurisdiction_level IN ('independent_city', 'city', 'municipality'))
-        OR (NOT is_directory_node AND city IS NOT NULL))
-      ORDER BY name LIMIT 1`;
+        OR NOT is_directory_node)
+      ORDER BY is_directory_node DESC, name LIMIT 1`;
   if (!tenant) throw new HttpError(400, 'Choose an active LGU to create your account.', undefined, 'invalid_lgu');
   const passwordHash = await hashPassword(body.password);
   // Public registration always creates a citizen account. Staff accounts are
