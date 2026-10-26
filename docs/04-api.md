@@ -32,7 +32,7 @@ Only a `platform_admin` may call these endpoints. Bootstrap the first platform a
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/platform/lgus` | List LGUs, active staff counts, report counts and their initial administrator |
-| POST | `/api/platform/lgus` | Create an LGU and its first administrator; body: `name, city, province, slug?, admin_name, admin_email, admin_phone?, temporary_password` |
+| POST | `/api/platform/lgus` | Create an LGU and its first administrator; body: `name, city, province, slug?, map_latitude?, map_longitude?, admin_name, admin_email, admin_phone?, temporary_password` |
 | PATCH | `/api/platform/lgus/:id` | Activate/deactivate an LGU; deactivation revokes tenant sessions |
 
 ## Account
