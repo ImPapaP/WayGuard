@@ -117,7 +117,9 @@ is needed for any of them.
 
 ### Adding multiple LGUs
 
-The service start command automatically applies the database migrations, including the multi-LGU schema. Existing data is retained and attached to the initial LGU.
+The service start command applies the database migrations and synchronizes the official Philippine Standard Geographic Code (PSGC) hierarchy before starting the web app. The sync is safe to repeat and matches existing LGU rows where possible so user accounts, reports and history keep their original database IDs.
+
+The bundled geographic snapshot is derived from the Philippine Statistics Authority's [PSGC publication](https://psa.gov.ph/classification/psgc), dated 30 June 2026 (Q2 2026), and checked against the [Q3 2026 release](https://psa.gov.ph/classification/psgc/node/1684084314), dated 30 September 2026. The Q3 release's recorded change affects a barangay name; the regions, provinces, cities and municipalities used by this hierarchy were unchanged. Island groups (Luzon, Visayas and Mindanao) are grouping nodes in WayGuard rather than official PSGC administrative levels. To synchronize the bundled snapshot manually against your configured database, run `npm run psgc:sync`.
 
 After the first deployment, create a separate platform administrator once. In a terminal or Render Shell connected to the **same production database**, run:
 
@@ -125,9 +127,13 @@ After the first deployment, create a separate platform administrator once. In a 
 npm run create-platform-admin
 ```
 
-Choose a unique platform-admin e-mail and a strong password. Do not use the ordinary `create-admin` command for this step; that creates an administrator inside the default LGU. Sign in using the platform administrator and open `/platform/lgus`. Create each city/municipality and its first LGU administrator there. The new LGU administrator can then create staff and maintenance crew accounts within that LGU. Staff can process reports but cannot manage users, teams, agencies or system settings.
+Choose a unique platform-admin e-mail and a strong password. Do not use the ordinary `create-admin` command for this step; that creates an administrator inside a local LGU. Sign in using the platform administrator and open `/platform/lgus` to see the full hierarchy:
 
-Use optional map latitude/longitude when adding an LGU, or set its centre later in that LGU's **System settings**. Reports currently belong to the LGU selected when a citizen registers. Automatic jurisdiction matching or a hard geographic boundary check on the report GPS is not included in this change.
+`Island Group → Region → Province / Independent City → Municipality / Component City`
+
+Use the tree to review jurisdiction placement and active status. Then open `/platform/accounts`. The **Create an area administrator** form lets you select an area through cascading island-group, region, province/city and locality selectors. Creating the account attaches it to that PSGC node and records the assignment in the audit history. The administrator receives access to the selected node and all descendants (for example, a province administrator can manage its municipalities and component cities, but not a neighbouring province). You can also edit an existing administrator's assigned areas on that page; changed permissions revoke existing sessions. New area administrators must change their temporary password on first sign-in.
+
+Local LGU administrators can continue to create staff and maintenance crew accounts for their own locality. Citizen registration offers local city/municipality destinations, rather than island groups or regions. Reports currently belong to the locality selected when a citizen registers. Automatic GPS-to-jurisdiction matching or a hard geographic boundary check on report coordinates is not included in this change.
 
 Open the address on a phone (Chrome or Safari): GPS, the camera and drive
 mode work because the site is `https://`. Use **Add to Home screen** to
