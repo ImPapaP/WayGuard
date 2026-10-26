@@ -18,6 +18,7 @@ import { photoRoutes } from './routes/photos.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { publicRoutes } from './routes/public.js';
 import { adminRoutes } from './routes/admin.js';
+import { platformRoutes } from './routes/platform.js';
 import { maintenanceRoutes } from './routes/maintenance.js';
 import { geoRoutes } from './routes/geo.js';
 import { exportRoutes } from './routes/exports.js';
@@ -35,6 +36,7 @@ export function createApp({ logRequests = !config.isTest } = {}) {
     notificationRoutes,
     publicRoutes,
     adminRoutes,
+    platformRoutes,
     maintenanceRoutes,
     geoRoutes,
     exportRoutes,
