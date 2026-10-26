@@ -24,7 +24,7 @@ const EMPTY_FORM = {
 };
 
 export default function LGUs() {
-  useDocumentTitle('LGU management');
+  useDocumentTitle('Management workspace');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -103,8 +103,8 @@ export default function LGUs() {
         <div className="page-head" style={{ alignItems: 'flex-start' }}>
           <div>
             <p className="eyebrow"><LuShieldCheck aria-hidden /> Platform administration</p>
-            <h1>LGU management</h1>
-            <p className="muted">Create independent local government workspaces. Every LGU gets its own administrator, staff, teams, reports and settings.</p>
+            <h1>Management workspace</h1>
+            <p className="muted">Manage participating local governments, jurisdiction boundaries and the administrator responsible for each workspace.</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span className="small muted">{user?.full_name}</span>
@@ -112,6 +112,18 @@ export default function LGUs() {
           </div>
         </div>
 
+        <section className="panel" style={{ marginBottom: 20 }} aria-labelledby="management-scope-title">
+          <div className="panel__head">
+            <h2 id="management-scope-title"><LuShieldCheck aria-hidden /> Management scope</h2>
+          </div>
+          <p className="muted">Management provisions LGU workspaces and controls the top-level administrator assignment. Each LGU administrator manages that workspace's accounts, agencies, maintenance teams and operational records.</p>
+          <div className="form-row form-row--3">
+            <div><strong>1. Management</strong><p className="muted small">Platform-wide workspace and jurisdiction oversight</p></div>
+            <div><strong>2. LGU administrator</strong><p className="muted small">Accounts, agencies and teams within one LGU</p></div>
+            <div><strong>3. Staff and crews</strong><p className="muted small">Operational access assigned by the LGU</p></div>
+          </div>
+          <p className="small muted">Assignments shown here are currently at LGU-workspace level; regional and province-wide multi-LGU delegation is not enabled yet.</p>
+        </section>
         <div className="form-row form-row--2" style={{ alignItems: 'start' }}>
           <section className="panel">
             <div className="panel__head">
