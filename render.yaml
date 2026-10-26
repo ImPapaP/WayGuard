@@ -5,6 +5,8 @@ services:
   - type: web
     name: wayguard
     runtime: node
+    # Keep commands at the repository root; root scripts build the client and start the server workspace.
+    rootDir: .
     region: singapore
     plan: free
     # Dev dependencies (esbuild) are needed to build the web client.
