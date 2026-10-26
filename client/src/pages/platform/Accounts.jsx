@@ -114,7 +114,11 @@ export default function Accounts() {
   function updateAssignments(accountId, lguId, checked) {
     setAssignmentDrafts((previous) => {
       const account = data?.items?.find((item) => item.id === accountId);
-      const current = previous[accountId] ?? (account ? baseJurisdictions(account) : []);
+      const current = previous[accountId] ?? (account
+        ? (account.role === 'admin'
+          ? baseJurisdictions(account)
+          : (roleDrafts[accountId] === 'admin' && account.lgu_id ? [Number(account.lgu_id)] : []))
+        : []);
       return { ...previous, [accountId]: checked ? [...new Set([...current, lguId])] : current.filter((id) => id !== lguId) };
     });
   }
@@ -227,7 +231,7 @@ export default function Accounts() {
                 options={[{ value: '', label: 'Choose region…' }, ...childrenFor(currentAreaPicker('new').islandGroup, ['region'])]}
               />
               <SelectField
-                label="3. Province / independent city"
+                label="3. Province / independent city / direct locality"
                 value={currentAreaPicker('new').branch}
                 onChange={(event) => changeAreaPicker('new', 'branch', event.target.value)}
                 options={[{ value: '', label: 'Choose area…' }, ...childrenFor(currentAreaPicker('new').region, ['province', 'independent_city', 'special_area', 'city', 'municipality'])]}
