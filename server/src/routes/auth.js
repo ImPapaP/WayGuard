@@ -23,6 +23,9 @@ const registerSchema = z.object({
   email,
   phone,
   password,
+  // The public registration screen selects an active LGU. Optional here for
+  // backward compatibility with older clients; absent values use LGU 1.
+  lgu_id: z.coerce.number().int().positive().optional(),
 });
 
 const loginSchema = z.object({
@@ -45,7 +48,9 @@ const changePasswordSchema = z.object({
 
 async function loadUser(id) {
   const rows = await sql`
-    SELECT ${userColumns()} FROM users u LEFT JOIN maintenance_teams t ON t.id = u.team_id
+    SELECT ${userColumns()} FROM users u
+    LEFT JOIN maintenance_teams t ON t.id = u.team_id AND t.lgu_id = u.lgu_id
+    LEFT JOIN lgus l ON l.id = u.lgu_id
     WHERE u.id = ${id}`;
   return rows[0] || null;
 }
@@ -57,12 +62,16 @@ authRoutes.post('/register', async (ctx) => {
   const body = await readJson(ctx, registerSchema);
   const existing = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.email}`;
   if (existing.length) throw conflict('An account with this e-mail already exists. Try signing in.');
+  const [tenant] = body.lgu_id
+    ? await sql`SELECT id FROM lgus WHERE id = ${body.lgu_id} AND is_active`
+    : await sql`SELECT id FROM lgus WHERE is_active ORDER BY id LIMIT 1`;
+  if (!tenant) throw new HttpError(400, 'Choose an active LGU to create your account.', undefined, 'invalid_lgu');
   const passwordHash = await hashPassword(body.password);
   // Public registration always creates a citizen account. Staff accounts are
   // created by an administrator.
   const [user] = await sql`
-    INSERT INTO users (email, password_hash, full_name, phone, role)
-    VALUES (${body.email}, ${passwordHash}, ${body.full_name}, ${body.phone}, 'citizen')
+    INSERT INTO users (email, password_hash, full_name, phone, role, lgu_id)
+    VALUES (${body.email}, ${passwordHash}, ${body.full_name}, ${body.phone}, 'citizen', ${tenant.id})
     RETURNING id`;
   await createSession(ctx, user.id);
   await sql`UPDATE users SET last_login_at = now() WHERE id = ${user.id}`;
@@ -73,14 +82,18 @@ authRoutes.post('/login', async (ctx) => {
   loginLimiterIp.consume(`ip:${ctx.ip}`, ctx);
   const body = await readJson(ctx, loginSchema);
   loginLimiterAccount.consume(`acct:${body.email}`, ctx);
-  const rows = await sql`SELECT id, password_hash, is_active FROM users WHERE lower(email) = ${body.email}`;
+  const rows = await sql`
+    SELECT u.id, u.password_hash, u.is_active, u.role,
+           (u.role = 'platform_admin' OR l.is_active) AS tenant_active
+    FROM users u LEFT JOIN lgus l ON l.id = u.lgu_id
+    WHERE lower(u.email) = ${body.email}`;
   const row = rows[0];
   const ok = await verifyPassword(body.password, row ? row.password_hash : await dummyHash());
   if (!row || !ok) {
     throw new HttpError(401, 'Incorrect e-mail or password.', undefined, 'invalid_credentials');
   }
-  if (!row.is_active) {
-    throw new HttpError(403, 'This account has been deactivated. Contact your LGU administrator.', undefined, 'inactive');
+  if (!row.is_active || !row.tenant_active) {
+    throw new HttpError(403, 'This account or its LGU has been deactivated. Contact your platform administrator.', undefined, 'inactive');
   }
   loginLimiterAccount.reset(`acct:${body.email}`);
   await createSession(ctx, row.id);
