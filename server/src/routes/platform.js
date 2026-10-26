@@ -7,7 +7,6 @@ import { requireRole } from '../middleware/auth.js';
 import { text, email, password, phone } from '../lib/validation.js';
 import { hashPassword } from '../lib/security.js';
 import { audit } from '../services/audit.js';
-import { destroyUserSessions } from '../services/sessions.js';
 import { DEFAULT_SETTINGS } from '../services/settings.js';
 
 export const platformRoutes = new Router('/api/platform');
@@ -21,7 +20,7 @@ const createLguSchema = z.object({
   map_latitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-90).max(90)])
     .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_longitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-180).max(180)])
-    .transform((v) => (v === '' || v === null ? null : v)),
+    .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   admin_name: text(2, 100, 'Administrator name'),
   admin_email: email,
   admin_phone: phone,
