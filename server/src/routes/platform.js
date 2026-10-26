@@ -8,6 +8,7 @@ import { text, email, password, phone } from '../lib/validation.js';
 import { hashPassword } from '../lib/security.js';
 import { audit } from '../services/audit.js';
 import { destroyUserSessions } from '../services/sessions.js';
+import { DEFAULT_SETTINGS } from '../services/settings.js';
 
 export const platformRoutes = new Router('/api/platform');
 const platformAdmin = requireRole('platform_admin');
@@ -17,11 +18,19 @@ const createLguSchema = z.object({
   slug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letters, numbers and hyphens for the LGU slug.').optional(),
   city: text(2, 100, 'City / municipality'),
   province: text(2, 100, 'Province'),
+  map_latitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-90).max(90)])
+    .transform((v) => (v === '' || v === null ? null : v)),
+  map_longitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-180).max(180)])
+    .transform((v) => (v === '' || v === null ? null : v)),
   admin_name: text(2, 100, 'Administrator name'),
   admin_email: email,
   admin_phone: phone,
   temporary_password: password,
-});
+}).refine(
+  (v) => (v.map_latitude === null && v.map_longitude === null) ||
+    (typeof v.map_latitude === 'number' && typeof v.map_longitude === 'number'),
+  { message: 'Enter both map coordinates or leave both blank.', path: ['map_latitude'] },
+);
 
 platformRoutes.get('/lgus', platformAdmin, async (ctx) => {
   const rows = await sql`
@@ -55,18 +64,22 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
       VALUES (${body.name}, ${slug}, ${body.city}, ${body.province})
       RETURNING id, name, slug, city, province, is_active, created_at`;
 
-    // Start with the existing configuration defaults, but give the new LGU
-    // its own copy so changes cannot affect another jurisdiction.
-    await tx`
-      INSERT INTO settings (lgu_id, key, value, updated_by)
-      SELECT ${lgu.id}, key, value, ${ctx.user.id}
-      FROM settings WHERE lgu_id = 1
-      ON CONFLICT (lgu_id, key) DO NOTHING`;
-    await tx`
-      INSERT INTO settings (lgu_id, key, value, updated_by)
-      VALUES (${lgu.id}, 'lgu_name', ${tx.json(body.name)}, ${ctx.user.id})
-      ON CONFLICT (lgu_id, key) DO UPDATE
-      SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`;
+    // Start from safe defaults, never copy another LGU's map centre or
+    // agency ID mappings. Those belong to a specific jurisdiction.
+    const initialSettings = {
+      ...DEFAULT_SETTINGS,
+      lgu_name: body.name,
+      map_center: body.map_latitude !== null && body.map_longitude !== null
+        ? { ...DEFAULT_SETTINGS.map_center, lat: body.map_latitude, lng: body.map_longitude }
+        : DEFAULT_SETTINGS.map_center,
+    };
+    for (const [key, value] of Object.entries(initialSettings)) {
+      await tx`
+        INSERT INTO settings (lgu_id, key, value, updated_by)
+        VALUES (${lgu.id}, ${key}, ${tx.json(value)}, ${ctx.user.id})
+        ON CONFLICT (lgu_id, key) DO UPDATE
+        SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`;
+    }
 
     const [admin] = await tx`
       INSERT INTO users (email, password_hash, full_name, phone, role, lgu_id, must_change_password)
