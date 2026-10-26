@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LuSmartphone, LuLayoutDashboard, LuHardHat, LuCircleCheck } from 'react-icons/lu';
+import { LuSmartphone, LuLayoutDashboard, LuHardHat, LuCircleCheck, LuEye, LuEyeOff } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth, HOME_BY_ROLE } from '../../lib/auth.jsx';
 import { api } from '../../lib/api.js';
@@ -39,6 +39,7 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [welcome, setWelcome] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (user && !welcome) return <Navigate to={safeNext(query.next, user.role)} />;
 
@@ -113,12 +114,16 @@ export default function Login() {
         />
         <TextField
           label="Password"
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           autoComplete="current-password"
           value={form.password}
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           required
         />
+        <button type="button" className="linkish password-visibility" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
+          {showPassword ? <LuEyeOff aria-hidden /> : <LuEye aria-hidden />}
+          {showPassword ? 'Hide password' : 'Show password'}
+        </button>
         <Button type="submit" variant="navy" size="lg" block loading={busy}>
           Sign in
         </Button>
