@@ -58,7 +58,7 @@ exportRoutes.get('/reports.pdf', admin, async (ctx) => {
 exportRoutes.get('/summary.pdf', admin, async (ctx) => {
   limiter.consume(`user:${ctx.user.id}`, ctx);
   const stats = await computeStats(ctx.query, ctx.user.lgu_id);
-  const { lgu_name } = await getSettings();
+  const { lgu_name } = await getSettings(sql, ctx.user.lgu_id);
   const pdf = await summaryPdf(stats, { lguName: lgu_name });
   await audit(sql, {
     actorId: ctx.user.id,
