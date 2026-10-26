@@ -12,11 +12,11 @@ export const photoRoutes = new Router('/api/photos');
 photoRoutes.get('/:id', requireAuth(), async (ctx) => {
   const id = parseId(ctx.params.id, 'photo id');
   const [photo] = await sql`
-    SELECT p.id, p.storage_key, p.mime_type, r.id AS report_id, r.reporter_id
+    SELECT p.id, p.storage_key, p.mime_type, r.id AS report_id, r.reporter_id, r.lgu_id
     FROM report_photos p JOIN reports r ON r.id = p.report_id
     WHERE p.id = ${id}`;
   if (!photo) throw notFound('Photo not found.');
-  await assertCanView(sql, ctx.user, { id: photo.report_id, reporter_id: photo.reporter_id });
+  await assertCanView(sql, ctx.user, { id: photo.report_id, reporter_id: photo.reporter_id, lgu_id: photo.lgu_id });
   const data = await readPhotoFile(photo.storage_key, ctx.query.size === 'thumb' ? '_thumb.jpg' : '.jpg');
   if (!data) throw notFound('Photo file is missing.');
   const res = ctx.res;
