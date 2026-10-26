@@ -2501,6 +2501,12 @@ a.barlist__row:hover {
   color: var(--white);
   border-color: #2b4268;
 }
+.roles .btn--secondary:hover:not(:disabled),
+.roles .btn--secondary:focus-visible {
+  background: #152b4f;
+  color: var(--white);
+  border-color: #9fb0c8;
+}
 .roles .btn--navy {
   background: var(--amber);
   color: var(--night);
