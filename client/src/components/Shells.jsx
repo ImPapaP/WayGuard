@@ -150,7 +150,16 @@ export function PublicHeader() {
           <NavLink to="/map" className="hide-sm">
             Pothole map
           </NavLink>
-          {user ? (
+          {user?.role === 'platform_admin' ? (
+            <>
+              <Link to="/platform/lgus" className="btn btn--secondary btn--sm">
+                Management workspace
+              </Link>
+              <Link to="/platform/accounts" className="btn btn--navy btn--sm" aria-current={pathname === '/platform/accounts' ? 'page' : undefined}>
+                Accounts &amp; assignments
+              </Link>
+            </>
+          ) : user ? (
             <Link to={HOME_BY_ROLE[user.role]} className="btn btn--navy btn--sm">
               Open my workspace
             </Link>
