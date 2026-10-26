@@ -334,32 +334,27 @@ export default function LGUs() {
             {loading ? <Loading label="Loading LGUs…" /> : error ? <Alert type="error">{error.message}</Alert> : !data?.items?.length ? (
               <EmptyState title="No LGUs yet" description="Create the first local government workspace using the form." />
             ) : (
-              <div style={{ display: 'grid', gap: 12 }}>
-                {data.items.map((lgu) => (
-                  <article key={lgu.id} className="panel" style={{ padding: 16, background: 'var(--surface-sunken)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                      <div>
-                        <h3 style={{ margin: 0 }}>{lgu.name}</h3>
-                        <p className="muted small" style={{ margin: '4px 0' }}>{[lgu.city, lgu.province].filter(Boolean).join(', ')}</p>
-                        <p className="muted small" style={{ margin: '4px 0' }}>Workspace: <code>{lgu.slug}</code></p>
-                        <p className="muted small" style={{ margin: '4px 0' }}>Jurisdiction: {lgu.jurisdiction_level?.replaceAll('_', ' ') || 'municipality'}{lgu.parent_lgu_id ? ` · Parent ID ${lgu.parent_lgu_id}` : ' · Top level'}</p>
-                      </div>
-                      <span className={`badge ${lgu.is_active ? 'badge--resolved' : 'badge--rejected'}`}>
-                        {lgu.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    <div className="form-row form-row--2" style={{ margin: '12px 0' }}>
-                      <div><strong>{lgu.staff_count}</strong><p className="muted small" style={{ margin: 0 }}>Active staff and crews</p></div>
-                      <div><strong>{lgu.report_count}</strong><p className="muted small" style={{ margin: 0 }}>Reports</p></div>
-                    </div>
-                    <p className="muted small">Administrator: {lgu.administrator_name || 'Not assigned'}</p>
-                    <label className="field"><span className="field__label">Jurisdiction boundary</span><textarea className="input" rows={4} spellCheck={false} value={boundaryDrafts[lgu.id] ?? (lgu.jurisdiction_boundary ? JSON.stringify(lgu.jurisdiction_boundary, null, 2) : '')} onChange={(e) => setBoundaryDrafts((old) => ({ ...old, [lgu.id]: e.target.value }))} placeholder="Paste GeoJSON Polygon or MultiPolygon" /><span className="field__hint">{lgu.jurisdiction_boundary ? 'Boundary configured. Empty field removes it.' : 'No boundary configured; location checks are not active until one is saved.'}</span></label>
-                    <Button size="sm" variant="navy" loading={savingBoundary === lgu.id} onClick={() => saveBoundary(lgu)}>Save jurisdiction boundary</Button>
-                    <Button size="sm" variant={lgu.is_active ? 'secondary' : 'navy'} loading={busyLgu === lgu.id} onClick={() => toggleLgu(lgu)}>
-                      {lgu.is_active ? <><LuCircleX aria-hidden /> Deactivate LGU</> : <><LuCircleCheck aria-hidden /> Reactivate LGU</>}
-                    </Button>
-                  </article>
-                ))}
+              <div style={{ display: 'grid', gap: 14 }}>
+                <div className="panel" style={{ background: 'var(--surface-sunken)', padding: 14 }}>
+                  <strong>Jurisdiction hierarchy</strong>
+                  <p className="muted small" style={{ margin: '6px 0 10px' }}>Island Group → Region → Province / Independent City → Municipality / Component City → Barangay</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {LEVEL_OPTIONS.map((level) => <span key={level.value} className="badge">{level.label}</span>)}
+                  </div>
+                  <p className="muted small" style={{ margin: '10px 0 0' }}>The tree shows jurisdictions currently registered in WayGuard. It is not yet the complete official national directory; existing records can be placed into the correct level and parent below.</p>
+                </div>
+                {islandGroups.length > 0 ? (
+                  <div style={{ display: 'grid', gap: 12 }}>{islandGroups.map((lgu) => renderNode(lgu))}</div>
+                ) : (
+                  <EmptyState title="Start with an island group" description="Create Luzon, Visayas or Mindanao first. Regions must be placed under an island group." />
+                )}
+                {unplacedRoots.length > 0 && (
+                  <section className="panel" style={{ borderColor: 'var(--warning, #d97706)' }}>
+                    <h3 style={{ marginTop: 0 }}>Needs hierarchy placement</h3>
+                    <p className="muted small">These existing or legacy records are not connected to an island-group node. Open each one to assign its correct level and parent.</p>
+                    <div style={{ display: 'grid', gap: 10 }}>{unplacedRoots.map((lgu) => renderNode(lgu))}</div>
+                  </section>
+                )}
               </div>
             )}
             <p className="muted small" style={{ marginTop: 16 }}>An inactive LGU's personnel can no longer sign in. Its historical records are retained and become available again if reactivated.</p>
