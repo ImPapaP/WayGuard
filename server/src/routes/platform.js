@@ -19,8 +19,9 @@ const PARENT_LEVELS = {
   region: ['island_group'],
   province: ['region'],
   independent_city: ['region'],
-  city: ['province'],
-  municipality: ['province'],
+  special_area: ['region'],
+  city: ['province', 'special_area'],
+  municipality: ['province', 'region', 'special_area'],
   barangay: ['municipality', 'city', 'independent_city'],
 };
 
@@ -82,7 +83,7 @@ const createLguSchema = z.object({
   slug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letters, numbers and hyphens for the LGU slug.').optional(),
   city: z.string().trim().max(100).optional().nullable().transform((value) => value || null),
   province: z.string().trim().max(100).optional().nullable().transform((value) => value || null),
-  jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).default('municipality'),
+  jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'special_area', 'city', 'municipality', 'barangay']).default('municipality'),
   parent_lgu_id: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().int().positive()]).transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_latitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-90).max(90)])
     .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
@@ -103,6 +104,7 @@ const createLguSchema = z.object({
 platformRoutes.get('/lgus', platformAdmin, async (ctx) => {
   const rows = await sql`
     SELECT l.id, l.name, l.slug, l.city, l.province, l.jurisdiction_level, l.parent_lgu_id, l.is_active, l.created_at, l.jurisdiction_boundary,
+      l.psgc_code, l.psgc_release, l.is_directory_node,
       (SELECT count(*)::int FROM users u WHERE u.lgu_id = l.id AND u.role IN ('admin', 'staff', 'maintenance') AND u.is_active) AS staff_count,
       (SELECT count(*)::int FROM reports r WHERE r.lgu_id = l.id) AS report_count,
       (SELECT u.full_name FROM users u WHERE u.lgu_id = l.id AND u.role = 'admin' ORDER BY u.created_at, u.id LIMIT 1) AS administrator_name
@@ -264,7 +266,7 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
   if (slug.length < 2) throw badRequest('Provide a longer LGU name or an explicit slug.');
-  const [nameExists] = await sql`SELECT 1 FROM lgus WHERE lower(name) = lower(${body.name})`;
+  const [nameExists] = await sql`SELECT 1 FROM lgus WHERE lower(name) = lower(${body.name}) AND parent_lgu_id IS NOT DISTINCT FROM ${body.parent_lgu_id}`;
   if (nameExists) throw conflict('An LGU with this name already exists.');
   const [emailExists] = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.admin_email}`;
   if (emailExists) throw conflict('An account with this administrator e-mail already exists.');
