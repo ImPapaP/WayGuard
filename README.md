@@ -152,7 +152,7 @@ npm run create-platform-admin
 
 Use a unique e-mail address and a strong password. This platform administrator creates each LGU and its first LGU administrator. The LGU administrator then creates that jurisdiction's staff and maintenance crews under **Users**. Do not share the platform administrator account with LGU personnel.
 
-Tenant restrictions are enforced by the backend and database constraints, not only by the interface. LGU staff and administrators can access only their LGU's private reports, assignments, maps, statistics, photos, notifications, settings and exports; the public map remains public-safe and may show verified reports across LGUs.
+Tenant restrictions are enforced by the backend and database constraints, not only by the interface. LGU staff and administrators can access only their LGU's private reports, assignments, maps, statistics, photos, notifications and exports. Only LGU administrators can manage users, teams, agencies, settings and the activity log. The public map remains public-safe and may show verified reports across LGUs.
 
 ## 6. Run
 
