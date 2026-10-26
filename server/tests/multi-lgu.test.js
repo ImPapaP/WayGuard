@@ -111,3 +111,99 @@ test('admin report lists and private report details are isolated by LGU', async 
   assert.equal(adminTenantUsers.status, 200);
   assert.ok(adminTenantUsers.data.items.every((user) => user.lgu_id === defaultAdmin.user?.lgu_id));
 });
+
+
+test('regional administrator scopes reports, maps, exports, teams and users to assigned descendants; assignment changes revoke sessions and are audited', async () => {
+  async function createJurisdiction({ name, slug, level, parentId = null, city }) {
+    const result = await platform.post('/api/platform/lgus', {
+      name, slug, city, province: 'Bulacan', jurisdiction_level: level, parent_lgu_id: parentId,
+      admin_name: name + ' Administrator',
+      admin_email: slug + '.admin@example.test',
+      admin_phone: null,
+      temporary_password: 'StartAdmin123',
+    });
+    assert.equal(result.status, 201, JSON.stringify(result.data));
+    return result.data.lgu;
+  }
+
+  const region = await createJurisdiction({ name: 'Central Test Region', slug: 'central-test-region', level: 'region', city: 'Central' });
+  const child = await createJurisdiction({ name: 'Test Municipality', slug: 'test-municipality', level: 'municipality', parentId: region.id, city: 'Test Municipality' });
+  const otherRegion = await createJurisdiction({ name: 'Other Test Region', slug: 'other-test-region', level: 'region', city: 'Other' });
+
+  const regionalUser = await createUser({ role: 'admin', lguId: region.id, name: 'Regional Scope Admin' });
+  const staleSession = await login(server.base, regionalUser);
+  const assignment = await platform.put('/api/platform/accounts/' + regionalUser.id + '/jurisdictions', { lgu_ids: [region.id] });
+  assert.equal(assignment.status, 200, JSON.stringify(assignment.data));
+  assert.equal(assignment.data.changed, true);
+  assert.equal((await staleSession.get('/api/notifications')).status, 401, 'the assignment update should revoke existing sessions');
+
+  const childCitizen = await login(server.base, await createUser({ role: 'citizen', lguId: child.id, name: 'Child Jurisdiction Citizen' }));
+  const otherCitizen = await login(server.base, await createUser({ role: 'citizen', lguId: otherRegion.id, name: 'Other Jurisdiction Citizen' }));
+  const childSubmission = await submitReport(childCitizen, {
+    road_name: 'Descendant Scope Road',
+    city: 'Test Municipality',
+    barangay: 'North',
+    latitude: '14.7001',
+    longitude: '120.9001',
+  });
+  const otherSubmission = await submitReport(otherCitizen, {
+    road_name: 'Outside Scope Road',
+    city: 'Other Region',
+    barangay: 'South',
+    latitude: '14.7101',
+    longitude: '120.9101',
+  });
+  assert.equal(childSubmission.status, 201, JSON.stringify(childSubmission.data));
+  assert.equal(otherSubmission.status, 201, JSON.stringify(otherSubmission.data));
+
+  const regional = await login(server.base, regionalUser);
+  const queue = await regional.get('/api/admin/reports');
+  assert.equal(queue.status, 200, JSON.stringify(queue.data));
+  assert.ok(queue.data.items.some((row) => row.id === childSubmission.data.report.id), 'a region admin sees descendant reports');
+  assert.ok(!queue.data.items.some((row) => row.id === otherSubmission.data.report.id), 'a region admin does not see a sibling region report');
+
+  const map = await regional.get('/api/admin/map');
+  assert.equal(map.status, 200);
+  assert.ok(map.data.items.some((row) => row.id === childSubmission.data.report.id));
+  assert.ok(!map.data.items.some((row) => row.id === otherSubmission.data.report.id));
+
+  const crossScopeDetail = await regional.get('/api/reports/' + otherSubmission.data.report.id);
+  assert.equal(crossScopeDetail.status, 404, 'report details use the same scope check');
+
+  const teamCreated = await regional.post('/api/admin/teams', {
+    lgu_id: child.id, name: 'Descendant Road Crew', description: 'Regional team', is_active: true,
+  });
+  assert.equal(teamCreated.status, 201, JSON.stringify(teamCreated.data));
+  const teamList = await regional.get('/api/admin/teams');
+  assert.equal(teamList.status, 200);
+  assert.ok(teamList.data.items.some((row) => row.id === teamCreated.data.id), 'regional admins may create and view teams in descendants');
+
+  const agencyCreated = await regional.post('/api/admin/agencies', {
+    lgu_id: child.id, name: 'Descendant Public Works', jurisdiction: 'city_municipal',
+    contact_email: null, contact_phone: null, is_active: true,
+  });
+  assert.equal(agencyCreated.status, 201, JSON.stringify(agencyCreated.data));
+  const agencyList = await regional.get('/api/admin/agencies');
+  assert.equal(agencyList.status, 200);
+  assert.ok(agencyList.data.items.some((row) => row.id === agencyCreated.data.id));
+
+  const users = await regional.get('/api/admin/users');
+  assert.equal(users.status, 200);
+  assert.ok(users.data.items.some((row) => row.lgu_id === child.id), 'account directory includes users in a descendant LGU');
+  assert.ok(!users.data.items.some((row) => row.lgu_id === otherRegion.id), 'account directory excludes users outside the assignment');
+
+  const csv = await regional.get('/api/admin/exports/reports.csv');
+  assert.equal(csv.status, 200);
+  assert.match(csv.data, /Descendant Scope Road/);
+  assert.doesNotMatch(csv.data, /Outside Scope Road/);
+
+  const centralAccounts = await platform.get('/api/platform/accounts');
+  assert.equal(centralAccounts.status, 200);
+  const listed = centralAccounts.data.items.find((row) => row.id === regionalUser.id);
+  assert.ok(listed);
+  assert.deepEqual(listed.jurisdiction_lgu_ids, [region.id]);
+
+  const history = await platform.get('/api/platform/accounts/' + regionalUser.id + '/jurisdiction-history');
+  assert.equal(history.status, 200);
+  assert.ok(history.data.items.some((row) => row.action === 'assigned' && row.lgu_id === region.id));
+});
