@@ -121,6 +121,44 @@ const accountUpdateSchema = z.object({
 const jurisdictionAssignmentSchema = z.object({
   lgu_ids: z.array(z.number().int().positive()).min(1).max(100),
 });
+const createAreaAdminSchema = z.object({
+  full_name: text(2, 100, 'Full name'),
+  email,
+  phone,
+  lgu_id: z.coerce.number().int().positive(),
+  temporary_password: password,
+});
+
+platformRoutes.post('/accounts', platformAdmin, async (ctx) => {
+  const body = await readJson(ctx, createAreaAdminSchema);
+  const [jurisdiction] = await sql`SELECT id, name, jurisdiction_level, psgc_code
+    FROM lgus WHERE id = ${body.lgu_id} AND is_active AND is_directory_node`;
+  if (!jurisdiction) throw badRequest('Choose an active area from the official PSGC directory.');
+  const [existing] = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.email}`;
+  if (existing) throw conflict('An account with this e-mail already exists.');
+  const passwordHash = await hashPassword(body.temporary_password);
+  const account = await sql.begin(async (tx) => {
+    const [created] = await tx`
+      INSERT INTO users (email, password_hash, full_name, phone, role, lgu_id, is_active, must_change_password)
+      VALUES (${body.email}, ${passwordHash}, ${body.full_name}, ${body.phone}, 'admin', ${jurisdiction.id}, TRUE, TRUE)
+      RETURNING id, email, full_name, phone, role, lgu_id, is_active, must_change_password, created_at`;
+    await tx`INSERT INTO admin_jurisdiction_assignments (user_id, lgu_id, assigned_by)
+      VALUES (${created.id}, ${jurisdiction.id}, ${ctx.user.id}) ON CONFLICT (user_id, lgu_id) DO NOTHING`;
+    await tx`INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+      VALUES (${created.id}, ${jurisdiction.id}, 'assigned', ${ctx.user.id},
+        ${tx.json({ source: 'management_account_creation', psgc_code: jurisdiction.psgc_code })})`;
+    await audit(tx, {
+      actorId: ctx.user.id,
+      action: 'platform.account.create',
+      targetType: 'user',
+      targetId: created.id,
+      details: { role: 'admin', lgu_id: jurisdiction.id, psgc_code: jurisdiction.psgc_code },
+      ip: ctx.ip,
+    });
+    return created;
+  });
+  ctx.json(201, { account, jurisdiction: { id: jurisdiction.id, name: jurisdiction.name, level: jurisdiction.jurisdiction_level } });
+});
 
 platformRoutes.get('/accounts', platformAdmin, async (ctx) => {
   const filters = [];
