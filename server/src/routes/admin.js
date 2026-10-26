@@ -123,12 +123,12 @@ const action = (fn) => async (ctx) => {
 
 adminRoutes.post(
   '/reports/:id/review',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => workflow.startReview(id, ctx.user, await readJson(ctx, noteSchema))),
 );
 adminRoutes.post(
   '/reports/:id/verify',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => {
     const b = await readJson(ctx, verifySchema);
     return workflow.verifyReport(id, ctx.user, { severity: b.severity, agencyId: b.agency_id, note: b.note });
@@ -136,12 +136,12 @@ adminRoutes.post(
 );
 adminRoutes.post(
   '/reports/:id/reject',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => workflow.rejectReport(id, ctx.user, await readJson(ctx, rejectSchema))),
 );
 adminRoutes.post(
   '/reports/:id/duplicate',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => {
     const b = await readJson(ctx, duplicateSchema);
     return workflow.markDuplicate(id, ctx.user, { duplicateOfId: b.duplicate_of_id, note: b.note });
@@ -149,7 +149,7 @@ adminRoutes.post(
 );
 adminRoutes.post(
   '/reports/:id/assign',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => {
     const b = await readJson(ctx, assignSchema);
     return workflow.assignReport(id, ctx.user, { teamId: b.team_id, instructions: b.instructions, dueDate: b.due_date });
@@ -157,17 +157,17 @@ adminRoutes.post(
 );
 adminRoutes.post(
   '/reports/:id/unassign',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => workflow.unassignReport(id, ctx.user, await readJson(ctx, noteSchema))),
 );
 adminRoutes.post(
   '/reports/:id/approve-completion',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => workflow.approveCompletion(id, ctx.user, await readJson(ctx, noteSchema))),
 );
 adminRoutes.post(
   '/reports/:id/return-completion',
-  admin,
+  adminOrStaff,
   action(async (ctx, id) => workflow.returnCompletion(id, ctx.user, await readJson(ctx, returnSchema))),
 );
 
