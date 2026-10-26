@@ -133,7 +133,7 @@ export async function assertCanView(db, user, report) {
   // Tenant scope is checked before role-specific access. A report ID from
   // another LGU must never grant access to its details, notes or photos.
   if (user.role !== 'platform_admin' && user.lgu_id !== report.lgu_id) throw notFound('Report not found.');
-  if (user.role === 'admin') return;
+  if (user.role === 'admin' || user.role === 'staff') return;
   if (user.role === 'citizen' && report.reporter_id === user.id) return;
   if (user.role === 'maintenance' && (await teamHasAssignment(db, report.id, user.team_id))) return;
   // Respond with 404 rather than 403 so report IDs cannot be probed.
@@ -194,7 +194,7 @@ export function publicShape(r) {
 export async function getReportDetail(db, id, user) {
   const r = await loadReportRow(db, id);
   await assertCanView(db, user, r);
-  const isAdmin = user.role === 'admin' && user.lgu_id === r.lgu_id;
+  const isAdmin = ['admin', 'staff'].includes(user.role) && user.lgu_id === r.lgu_id;
   const isStaff = isAdmin || user.role === 'maintenance';
 
   const [agency] = r.agency_id
