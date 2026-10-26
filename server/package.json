@@ -10,6 +10,7 @@
     "migrate": "node src/db/migrate.js",
     "seed": "node scripts/seed-demo.js",
     "seed:auto": "node scripts/seed-demo.js --auto",
+    "psgc:sync": "node scripts/sync-psgc-directory.js",
     "create-admin": "node scripts/create-admin.js",
     "test": "node --test --test-concurrency=1 \"tests/*.test.js\"",
     "create-platform-admin": "node scripts/create-platform-admin.js"
