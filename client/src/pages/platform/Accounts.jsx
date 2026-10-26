@@ -20,8 +20,9 @@ function roleLabel(role) {
 }
 
 function baseJurisdictions(account) {
-  const assigned = account.jurisdiction_lgu_ids || [];
-  return assigned.length ? assigned.map(Number) : (account.role === 'admin' && account.lgu_id ? [Number(account.lgu_id)] : []);
+  const assigned = (account.jurisdiction_lgu_ids || []).map(Number);
+  if (account.role === 'admin' && account.lgu_id != null) assigned.push(Number(account.lgu_id));
+  return [...new Set(assigned)];
 }
 
 export default function Accounts() {
