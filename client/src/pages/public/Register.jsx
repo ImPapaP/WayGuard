@@ -136,6 +136,9 @@ export default function Register() {
       <p className="auth__switch">
         Already have an account? <Link to="/login">Sign in</Link>
       </p>
+      <p className="auth__switch small">
+        Forgot your password? <Link to="/login#forgot-password">Get help signing in</Link>
+      </p>
     </AuthLayout>
   );
 }
