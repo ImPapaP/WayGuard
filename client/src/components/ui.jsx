@@ -213,7 +213,7 @@ export function Pagination({ page, pageSize, total, onPage }) {
 }
 
 // Accessible dialog: focus moves inside, Escape closes, background is inert.
-export function Modal({ title, onClose, children, footer, labelledBy }) {
+export function Modal({ title, onClose, children, footer, labelledBy, className = '' }) {
   const ref = useRef(null);
   const titleId = useId();
   useEffect(() => {
@@ -249,7 +249,7 @@ export function Modal({ title, onClose, children, footer, labelledBy }) {
   }, [onClose]);
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={labelledBy || titleId} ref={ref} tabIndex={-1}>
+      <div className={`modal ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={labelledBy || titleId} ref={ref} tabIndex={-1}>
         <div className="modal__head">
           <h2 id={titleId}>{title}</h2>
           <button type="button" className="icon-btn modal__close" onClick={onClose} aria-label="Close">
