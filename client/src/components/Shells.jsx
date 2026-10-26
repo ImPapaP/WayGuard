@@ -171,7 +171,7 @@ export function PublicHeader() {
 }
 
 export function PublicFooter() {
-  const { config } = useAuth();
+  const { user, config } = useAuth();
   return (
     <footer className="site-footer">
       <div className="container">
@@ -184,7 +184,7 @@ export function PublicFooter() {
             <Link to="/login">Sign in</Link>
           </div>
           <div className="site-footer__links" style={{ maxWidth: '38ch' }}>
-            <strong style={{ color: '#fff' }}>{config?.lgu_name || 'Your LGU'}</strong>
+            <strong style={{ color: '#fff' }}>{user?.lgu_name || 'Participating local governments'}</strong>
             <span>
               Reports are reviewed by authorized LGU personnel before they appear on the public map. Your name and contact details
               are never shown publicly.
