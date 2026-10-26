@@ -26,7 +26,7 @@ function monthLabel(ym) {
 
 export default function Dashboard() {
   useDocumentTitle('Dashboard');
-  const { config } = useAuth();
+  const { user, config } = useAuth();
   const [range, setRange] = useState({ from: '', to: '' });
   const { data: s, error, loading, reload } = useApi(`/api/admin/stats${qs(range)}`);
   const { data: open } = useApi('/api/admin/map?status=submitted,under_review,verified,assigned,in_progress');
@@ -38,7 +38,7 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>{config?.lgu_name}</p>
+          <p>{user?.lgu_name || config?.lgu_name}</p>
         </div>
         <form className="range" onSubmit={(e) => e.preventDefault()} aria-label="Reporting period">
           <label>
