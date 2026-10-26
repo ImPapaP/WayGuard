@@ -106,6 +106,8 @@ configured tile host, no inline scripts, no framing), `X-Content-Type-Options`,
 (the OSM tile policy needs a referrer), `Permissions-Policy` limiting
 geolocation and camera to the site, HSTS when HTTPS is used.
 
+Multi-LGU isolation: each non-platform account belongs to one `lgus` row. Server query filters, report access checks, and composite database foreign keys keep private reports, assignments, teams, agencies, account administration, settings, audit lists and exports within the assigned LGU. `platform_admin` is a separate provisioning role and does not bypass private report access checks.
+
 Privacy measures: data minimisation (only name, e-mail, optional phone), EXIF
 and GPS metadata stripped from photos, public endpoints return verified
 reports without reporter identity or photos, exports omit personal details,
