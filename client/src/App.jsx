@@ -28,6 +28,7 @@ import Settings from './pages/admin/Settings.jsx';
 import Exports from './pages/admin/Exports.jsx';
 import Activity from './pages/admin/Activity.jsx';
 import LGUs from './pages/platform/LGUs.jsx';
+import Accounts from './pages/platform/Accounts.jsx';
 
 import Tasks from './pages/crew/Tasks.jsx';
 import TaskDetail from './pages/crew/TaskDetail.jsx';
@@ -82,6 +83,7 @@ const routes = [
   { path: '/map', element: <PublicLayout bare><PublicMap /></PublicLayout> },
   { path: '/login', element: <Login /> },
   { path: '/platform/lgus', element: platformAdmin(<LGUs />) },
+  { path: '/platform/accounts', element: platformAdmin(<Accounts />) },
   { path: '/register', element: <Register /> },
   { path: '/r/:id', element: <ReportRedirect /> },
 
