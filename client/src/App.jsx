@@ -27,6 +27,7 @@ import Teams from './pages/admin/Teams.jsx';
 import Settings from './pages/admin/Settings.jsx';
 import Exports from './pages/admin/Exports.jsx';
 import Activity from './pages/admin/Activity.jsx';
+import LGUs from './pages/platform/LGUs.jsx';
 
 import Tasks from './pages/crew/Tasks.jsx';
 import TaskDetail from './pages/crew/TaskDetail.jsx';
@@ -50,7 +51,7 @@ function ReportRedirect() {
   const { user } = useAuth();
   if (user === undefined) return <Loading />;
   if (!user) return <Navigate to={`/login?next=/r/${id}`} />;
-  const path = { citizen: `/app/reports/${id}`, admin: `/admin/reports/${id}`, maintenance: `/crew/tasks/${id}` }[user.role];
+  const path = { citizen: `/app/reports/${id}`, admin: `/admin/reports/${id}`, maintenance: `/crew/tasks/${id}`, platform_admin: '/platform/lgus' }[user.role];
   return <Navigate to={path} />;
 }
 
@@ -69,11 +70,13 @@ const admin = (el) => (
     <AdminShell>{el}</AdminShell>
   </Protected>
 );
+const platformAdmin = (el) => <Protected roles={['platform_admin']}>{el}</Protected>;
 
 const routes = [
   { path: '/', element: <PublicLayout><Landing /></PublicLayout> },
   { path: '/map', element: <PublicLayout bare><PublicMap /></PublicLayout> },
   { path: '/login', element: <Login /> },
+  { path: '/platform/lgus', element: platformAdmin(<LGUs />) },
   { path: '/register', element: <Register /> },
   { path: '/r/:id', element: <ReportRedirect /> },
 
