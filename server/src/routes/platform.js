@@ -329,7 +329,7 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
   const body = await readJson(ctx, z.object({
     is_active: z.boolean().optional(),
     jurisdiction_boundary: z.union([z.record(z.any()), z.null()]).optional().refine(validBoundary, 'Enter a valid GeoJSON Polygon or MultiPolygon with closed coordinate rings.'),
-    jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).optional(),
+    jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'special_area', 'city', 'municipality', 'barangay']).optional(),
     parent_lgu_id: z.number().int().positive().nullable().optional(),
   }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined || v.jurisdiction_level !== undefined || v.parent_lgu_id !== undefined, 'Nothing to update.'));
   const [currentLgu] = await sql`SELECT id, jurisdiction_level, parent_lgu_id FROM lgus WHERE id = ${id}`;
