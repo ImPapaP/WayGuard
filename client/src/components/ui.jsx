@@ -136,11 +136,7 @@ export function SeverityBadge({ severity, showLabel = true }) {
 }
 
 export function DemoTag() {
-  return (
-    <span className="tag-demo" title="Demonstration record created by the seed script">
-      Demo
-    </span>
-  );
+  return null;
 }
 
 export function Alert({ type = 'info', title, children, className = '' }) {
