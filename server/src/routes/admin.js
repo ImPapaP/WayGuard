@@ -259,7 +259,7 @@ const updateUserSchema = z
   .object({
     full_name: text(2, 100, 'Full name'),
     phone,
-    role: z.enum(['citizen', 'admin', 'maintenance']),
+    role: z.enum(['citizen', 'admin', 'staff', 'maintenance']),
     team_id: z.number().int().positive().nullable(),
     is_active: z.boolean(),
   })
@@ -415,6 +415,10 @@ adminRoutes.get('/teams', admin, async (ctx) => {
 
 adminRoutes.post('/teams', admin, async (ctx) => {
   const b = await readJson(ctx, teamSchema);
+  if (b.agency_id) {
+    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ${ctx.user.lgu_id} AND is_active`;
+    if (!agency) throw badRequest('Choose an active agency from your LGU.');
+  }
   const [t] = await sql`
     INSERT INTO maintenance_teams (lgu_id, name, agency_id, description, is_active)
     VALUES (${ctx.user.lgu_id}, ${b.name}, ${b.agency_id ?? null}, ${b.description}, ${b.is_active ?? true}) RETURNING id`;
