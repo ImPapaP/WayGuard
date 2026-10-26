@@ -332,7 +332,16 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
   }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined || v.jurisdiction_level !== undefined || v.parent_lgu_id !== undefined, 'Nothing to update.'));
   const [currentLgu] = await sql`SELECT id, jurisdiction_level, parent_lgu_id FROM lgus WHERE id = ${id}`;
   if (!currentLgu) throw notFound('LGU not found.');
-  await assertValidParent(sql, { lguId: id, parentId: body.parent_lgu_id !== undefined ? body.parent_lgu_id : currentLgu.parent_lgu_id, level: body.jurisdiction_level || currentLgu.jurisdiction_level });
+  if (body.jurisdiction_level !== undefined || body.parent_lgu_id !== undefined) {
+    const nextLevel = body.jurisdiction_level || currentLgu.jurisdiction_level;
+    const nextParent = body.parent_lgu_id !== undefined ? body.parent_lgu_id : currentLgu.parent_lgu_id;
+    await assertValidParent(sql, { lguId: id, parentId: nextParent, level: nextLevel });
+    if (body.jurisdiction_level !== undefined && body.jurisdiction_level !== currentLgu.jurisdiction_level) {
+      const children = await sql`SELECT jurisdiction_level FROM lgus WHERE parent_lgu_id = ${id}`;
+      const invalidChild = children.find((child) => !validParentLevel(child.jurisdiction_level, nextLevel));
+      if (invalidChild) throw badRequest('This jurisdiction has child records. Move those children to valid parents before changing its level.');
+    }
+  }
   const [lgu] = await sql`
     UPDATE lgus SET
       is_active = COALESCE(${body.is_active ?? null}, is_active),
