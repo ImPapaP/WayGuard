@@ -10,7 +10,7 @@ import { Button, TextField, Alert } from '../../components/ui.jsx';
 // Only same-site paths are accepted as a redirect target.
 export function safeNext(next, role) {
   if (typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')) {
-    const prefix = { citizen: '/app', admin: '/admin', maintenance: '/crew', platform_admin: '/platform/lgus' }[role];
+    const prefix = { citizen: '/app', admin: '/admin', staff: '/admin', maintenance: '/crew', platform_admin: '/platform/lgus' }[role];
     if (next.startsWith(prefix) || next.startsWith('/r/') || next === '/map') return next;
   }
   return HOME_BY_ROLE[role];
@@ -20,6 +20,7 @@ export function safeNext(next, role) {
 const DESTINATION = {
   citizen: { label: 'Citizen', place: 'your reports', icon: LuSmartphone },
   admin: { label: 'LGU administrator', place: 'the LGU dashboard', icon: LuLayoutDashboard },
+  staff: { label: 'LGU staff', place: 'the LGU report workspace', icon: LuLayoutDashboard },
   maintenance: { label: 'Road crew', place: 'your repair tasks', icon: LuHardHat },
   platform_admin: { label: 'Platform administrator', place: 'LGU management', icon: LuShieldCheck },
 };
