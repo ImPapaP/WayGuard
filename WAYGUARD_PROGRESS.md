@@ -51,10 +51,10 @@ Size: server ≈ 4,500 lines, client ≈ 9,800 lines, tests ≈ 1,550 lines, doc
 
 ## Database schema
 
-Tables: `users`, `sessions`, `agencies`, `maintenance_teams`, `reports`,
+Tables: `lgus`, `users`, `sessions`, `agencies`, `maintenance_teams`, `reports`,
 `assignments`, `repair_updates`, `report_photos`, `report_events`,
 `notifications`, `feedback`, `settings`, `audit_logs`, `geocode_cache`,
-`schema_migrations`; function `wg_distance_m`. Migration:
+`schema_migrations`; function `wg_distance_m`. Migrations: `001_initial_schema.sql`, `002_multi_lgu.sql`.
 `server/src/db/migrations/001_initial_schema.sql`. Details and ERD:
 `docs/03-database.md`.
 
