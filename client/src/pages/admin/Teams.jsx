@@ -8,10 +8,11 @@ import { Link } from '../../lib/router.jsx';
 import { Alert, Button, ErrorState, Loading, Modal, SelectField, TextField } from '../../components/ui.jsx';
 import { JURISDICTIONS } from '../../lib/format.js';
 
-function TeamModal({ team, agencies, onClose, onSaved }) {
+function TeamModal({ team, agencies, jurisdictions, onClose, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState({
     name: team?.name || '',
+    lgu_id: team?.lgu_id ? String(team.lgu_id) : '',
     agency_id: team?.agency_id ? String(team.agency_id) : '',
     description: team?.description || '',
     is_active: team ? team.is_active : true,
@@ -22,6 +23,8 @@ function TeamModal({ team, agencies, onClose, onSaved }) {
     setBusy(true);
     try {
       const body = { ...form, agency_id: form.agency_id ? Number(form.agency_id) : null, description: form.description || null };
+      if (team) delete body.lgu_id;
+      else body.lgu_id = form.lgu_id ? Number(form.lgu_id) : undefined;
       if (team) await api.patch(`/api/admin/teams/${team.id}`, body);
       else await api.post('/api/admin/teams', body);
       toast(team ? 'Team updated.' : 'Team created.');
@@ -36,6 +39,7 @@ function TeamModal({ team, agencies, onClose, onSaved }) {
     <Modal title={team ? `Edit ${team.name}` : 'New maintenance team'} onClose={onClose} footer={<><Button onClick={onClose}>Cancel</Button><Button variant="navy" loading={busy} onClick={save}>Save</Button></>}>
       <div className="form-stack">
         {error && <Alert type="error">{error.message}</Alert>}
+        {!team && jurisdictions.length > 1 && <SelectField label="Jurisdiction" value={form.lgu_id} onChange={(e) => setForm({ ...form, lgu_id: e.target.value })} placeholder="Use my primary LGU" optional options={jurisdictions.map((lgu) => ({ value: String(lgu.id), label: `${lgu.name} — ${(lgu.jurisdiction_level || 'municipality').replaceAll('_', ' ')}` }))} />}
         <TextField label="Team name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={error?.fields?.name} />
         <SelectField label="Agency" optional value={form.agency_id} onChange={(e) => setForm({ ...form, agency_id: e.target.value })} placeholder="None" options={agencies.map((a) => ({ value: String(a.id), label: a.name }))} />
         <TextField label="Description" optional value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
@@ -50,10 +54,11 @@ function TeamModal({ team, agencies, onClose, onSaved }) {
   );
 }
 
-function AgencyModal({ agency, onClose, onSaved }) {
+function AgencyModal({ agency, jurisdictions, onClose, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState({
     name: agency?.name || '',
+    lgu_id: agency?.lgu_id ? String(agency.lgu_id) : '',
     jurisdiction: agency?.jurisdiction || 'city_municipal',
     contact_email: agency?.contact_email || '',
     contact_phone: agency?.contact_phone || '',
@@ -65,6 +70,8 @@ function AgencyModal({ agency, onClose, onSaved }) {
     setBusy(true);
     try {
       const body = { ...form, contact_email: form.contact_email || null, contact_phone: form.contact_phone || null };
+      if (agency) delete body.lgu_id;
+      else body.lgu_id = form.lgu_id ? Number(form.lgu_id) : undefined;
       if (agency) await api.patch(`/api/admin/agencies/${agency.id}`, body);
       else await api.post('/api/admin/agencies', body);
       toast(agency ? 'Agency updated.' : 'Agency added.');
@@ -80,6 +87,7 @@ function AgencyModal({ agency, onClose, onSaved }) {
     <Modal title={agency ? `Edit ${agency.name}` : 'New responsible agency'} onClose={onClose} footer={<><Button onClick={onClose}>Cancel</Button><Button variant="navy" loading={busy} onClick={save}>Save</Button></>}>
       <div className="form-stack">
         {error && <Alert type="error">{error.message}</Alert>}
+        {!agency && jurisdictions.length > 1 && <SelectField label="Jurisdiction" value={form.lgu_id} onChange={(e) => setForm({ ...form, lgu_id: e.target.value })} placeholder="Use my primary LGU" optional options={jurisdictions.map((lgu) => ({ value: String(lgu.id), label: `${lgu.name} — ${(lgu.jurisdiction_level || 'municipality').replaceAll('_', ' ')}` }))} />}
         <TextField label="Agency or office name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={f.name} />
         <SelectField label="Jurisdiction" value={form.jurisdiction} onChange={(e) => setForm({ ...form, jurisdiction: e.target.value })} options={Object.entries(JURISDICTIONS).map(([value, label]) => ({ value, label }))} />
         <div className="form-row form-row--2">
@@ -101,14 +109,15 @@ export default function Teams() {
   useDocumentTitle('Teams and agencies');
   const teams = useApi('/api/admin/teams');
   const agencies = useApi('/api/admin/agencies');
+  const jurisdictions = useApi('/api/admin/jurisdictions');
   const [modal, setModal] = useState(null);
   const done = () => {
     setModal(null);
     teams.reload();
     agencies.reload();
   };
-  if (teams.error || agencies.error) return <div className="container page"><ErrorState error={teams.error || agencies.error} onRetry={() => { teams.reload(); agencies.reload(); }} /></div>;
-  if (!teams.data || !agencies.data) return <Loading />;
+  if (teams.error || agencies.error || jurisdictions.error) return <div className="container page"><ErrorState error={teams.error || agencies.error || jurisdictions.error} onRetry={() => { teams.reload(); agencies.reload(); jurisdictions.reload(); }} /></div>;
+  if (!teams.data || !agencies.data || !jurisdictions.data) return <Loading />;
 
   return (
     <div className="container page">
@@ -132,7 +141,7 @@ export default function Teams() {
                 <div>
                   <strong>{t.name}</strong> {!t.is_active && <span className="badge badge--duplicate">Inactive</span>}
                   <span className="table__sub">
-                    {t.agency_name || 'No agency'}, {t.member_count} member{t.member_count === 1 ? '' : 's'},{' '}
+                    {t.lgu_name ? `${t.lgu_name} · ` : ''}{t.agency_name || 'No agency'}, {t.member_count} member{t.member_count === 1 ? '' : 's'},{' '}
                     <Link to={`/admin/reports?team_id=${t.id}`}>{t.active_tasks} active task{t.active_tasks === 1 ? '' : 's'}</Link>
                   </span>
                 </div>
@@ -161,7 +170,7 @@ export default function Teams() {
                 <div>
                   <strong>{a.name}</strong> {!a.is_active && <span className="badge badge--duplicate">Inactive</span>}
                   <span className="table__sub">
-                    {JURISDICTIONS[a.jurisdiction]} roads, {a.report_count} report{a.report_count === 1 ? '' : 's'}
+                    {a.lgu_name ? `${a.lgu_name} · ` : ''}{JURISDICTIONS[a.jurisdiction]} roads, {a.report_count} report{a.report_count === 1 ? '' : 's'}
                     {a.contact_email ? `, ${a.contact_email}` : ''}
                   </span>
                 </div>
@@ -177,8 +186,8 @@ export default function Teams() {
           </p>
         </section>
       </div>
-      {modal?.type === 'team' && <TeamModal team={modal.item} agencies={agencies.data.items.filter((a) => a.is_active)} onClose={() => setModal(null)} onSaved={done} />}
-      {modal?.type === 'agency' && <AgencyModal agency={modal.item} onClose={() => setModal(null)} onSaved={done} />}
+      {modal?.type === 'team' && <TeamModal team={modal.item} agencies={agencies.data.items.filter((a) => a.is_active)} jurisdictions={jurisdictions.data.items} onClose={() => setModal(null)} onSaved={done} />}
+      {modal?.type === 'agency' && <AgencyModal agency={modal.item} jurisdictions={jurisdictions.data.items} onClose={() => setModal(null)} onSaved={done} />}
     </div>
   );
 }
