@@ -12,6 +12,43 @@ import { DEFAULT_SETTINGS } from '../services/settings.js';
 export const platformRoutes = new Router('/api/platform');
 const platformAdmin = requireRole('platform_admin');
 
+const JURISDICTION_ORDER = {
+  island_group: 0,
+  region: 1,
+  province: 2,
+  independent_city: 2,
+  city: 3,
+  municipality: 3,
+  barangay: 4,
+};
+
+function validParentLevel(childLevel, parentLevel) {
+  if (!parentLevel) return childLevel === 'island_group' || childLevel === 'region';
+  const child = JURISDICTION_ORDER[childLevel];
+  const parent = JURISDICTION_ORDER[parentLevel];
+  return Number.isInteger(child) && Number.isInteger(parent) && parent < child;
+}
+
+async function assertValidParent(db, { lguId = null, parentId, level }) {
+  if (parentId == null) return;
+  if (lguId != null && Number(parentId) === Number(lguId)) throw badRequest('A jurisdiction cannot be its own parent.');
+  const [parent] = await db`SELECT id, jurisdiction_level FROM lgus WHERE id = ${parentId}`;
+  if (!parent) throw badRequest('Choose an existing parent jurisdiction.');
+  if (!validParentLevel(level, parent.jurisdiction_level)) {
+    throw badRequest('The parent jurisdiction must be higher in the geographic hierarchy.');
+  }
+  if (lguId != null) {
+    const [cycle] = await db`
+      WITH RECURSIVE descendants(id) AS (
+        SELECT id FROM lgus WHERE parent_lgu_id = ${lguId}
+        UNION ALL
+        SELECT l.id FROM lgus l JOIN descendants d ON l.parent_lgu_id = d.id
+      )
+      SELECT id FROM descendants WHERE id = ${parentId} LIMIT 1`;
+    if (cycle) throw badRequest('A jurisdiction cannot be moved beneath one of its descendants.');
+  }
+}
+
 function validBoundary(value) {
   if (value == null) return true;
   const feature = value.type === 'Feature' ? value.geometry : value;
@@ -77,6 +114,7 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
   const [slugExists] = await sql`SELECT 1 FROM lgus WHERE slug = ${slug}`;
   if (slugExists) throw conflict('That LGU slug is already in use. Choose a different slug.');
 
+  await assertValidParent(sql, { parentId: body.parent_lgu_id, level: body.jurisdiction_level });
   const passwordHash = await hashPassword(body.temporary_password);
   const created = await sql.begin(async (tx) => {
     const [lgu] = await tx`
@@ -127,6 +165,9 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
     jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).optional(),
     parent_lgu_id: z.number().int().positive().nullable().optional(),
   }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined || v.jurisdiction_level !== undefined || v.parent_lgu_id !== undefined, 'Nothing to update.'));
+  const [currentLgu] = await sql`SELECT id, jurisdiction_level FROM lgus WHERE id = ${id}`;
+  if (!currentLgu) throw notFound('LGU not found.');
+  await assertValidParent(sql, { lguId: id, parentId: body.parent_lgu_id !== undefined ? body.parent_lgu_id : null, level: body.jurisdiction_level || currentLgu.jurisdiction_level });
   const [lgu] = await sql`
     UPDATE lgus SET
       is_active = COALESCE(${body.is_active ?? null}, is_active),
