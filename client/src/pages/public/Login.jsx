@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LuSmartphone, LuLayoutDashboard, LuHardHat, LuCircleCheck, LuEye, LuEyeOff } from 'react-icons/lu';
+import { LuSmartphone, LuLayoutDashboard, LuHardHat, LuCircleCheck, LuEye, LuEyeOff, LuShieldCheck } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth, HOME_BY_ROLE } from '../../lib/auth.jsx';
 import { api } from '../../lib/api.js';
@@ -10,7 +10,7 @@ import { Button, TextField, Alert } from '../../components/ui.jsx';
 // Only same-site paths are accepted as a redirect target.
 export function safeNext(next, role) {
   if (typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')) {
-    const prefix = { citizen: '/app', admin: '/admin', maintenance: '/crew' }[role];
+    const prefix = { citizen: '/app', admin: '/admin', maintenance: '/crew', platform_admin: '/platform/lgus' }[role];
     if (next.startsWith(prefix) || next.startsWith('/r/') || next === '/map') return next;
   }
   return HOME_BY_ROLE[role];
@@ -21,6 +21,7 @@ const DESTINATION = {
   citizen: { label: 'Citizen', place: 'your reports', icon: LuSmartphone },
   admin: { label: 'LGU administrator', place: 'the LGU dashboard', icon: LuLayoutDashboard },
   maintenance: { label: 'Road crew', place: 'your repair tasks', icon: LuHardHat },
+  platform_admin: { label: 'Platform administrator', place: 'LGU management', icon: LuShieldCheck },
 };
 
 // Demo accounts listed only in the self-contained browser preview.
