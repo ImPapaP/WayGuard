@@ -107,10 +107,11 @@ export default function LGUs() {
           <div>
             <p className="eyebrow"><LuShieldCheck aria-hidden /> Platform administration</p>
             <h1>Management workspace</h1>
-            <p className="muted">Manage participating local governments, jurisdiction boundaries and the administrator responsible for each workspace.</p>
+            <p className="muted">Manage the jurisdiction hierarchy, provision LGU workspaces, and define the geographic scope used by administrators.</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span className="small muted">{user?.full_name}</span>
+            <Link to="/platform/accounts" className="btn btn--navy btn--sm"><LuUserPlus aria-hidden /> Accounts &amp; assignments</Link>
             <Button variant="secondary" onClick={signOut}><LuLogOut aria-hidden /> Sign out</Button>
           </div>
         </div>
@@ -125,7 +126,7 @@ export default function LGUs() {
             <div><strong>2. LGU administrator</strong><p className="muted small">Accounts, agencies and teams within one LGU</p></div>
             <div><strong>3. Staff and crews</strong><p className="muted small">Operational access assigned by the LGU</p></div>
           </div>
-          <p className="small muted">Assignments shown here are currently at LGU-workspace level; regional and province-wide multi-LGU delegation is not enabled yet.</p>
+          <p className="small muted">Create the geographic hierarchy first, then use Accounts & assignments to grant administrators access to a region, province, city or municipality and its descendants.</p>
         </section>
         <div className="form-row form-row--2" style={{ alignItems: 'start' }}>
           <section className="panel">
