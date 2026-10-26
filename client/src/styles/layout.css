@@ -753,3 +753,32 @@
     padding: 7px 9px;
   }
 }
+
+
+/* Sign-in and registration polish */
+.auth:has(.signin-heading) .auth__mobile-logo {
+  height: 164px;
+  margin-bottom: var(--s5);
+}
+.auth:has(.signin-heading) .auth__mobile-logo .logo {
+  height: 164px;
+}
+.auth:has(.signin-heading) .auth__card {
+  max-width: 460px;
+}
+.auth:has(.signin-heading) .auth__brand .logo {
+  height: 184px;
+}
+.auth:has(.signin-heading) .auth__brand {
+  --logo-h: 184px;
+}
+.signin-heading {
+  margin-bottom: var(--s5);
+}
+.signin-heading h1 {
+  margin-bottom: var(--s2);
+}
+.signin-heading .muted {
+  margin: 0;
+  line-height: 1.55;
+}
