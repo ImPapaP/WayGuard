@@ -398,12 +398,14 @@ adminRoutes.post('/users/:id/reset-password', admin, async (ctx) => {
 // Teams and agencies
 // ---------------------------------------------------------------------------
 const teamSchema = z.object({
+  lgu_id: z.number().int().positive().optional(),
   name: text(2, 120, 'Team name'),
   agency_id: z.number().int().positive().nullable().optional(),
   description: optionalText(500, 'Description'),
   is_active: z.boolean().optional(),
 });
 const agencySchema = z.object({
+  lgu_id: z.number().int().positive().optional(),
   name: text(2, 120, 'Agency name'),
   jurisdiction: z.enum(['national', 'provincial', 'city_municipal', 'barangay', 'other']),
   contact_email: z.union([z.literal(''), z.null(), email]).optional().transform((v) => v || null),
@@ -424,20 +426,24 @@ adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
 
 adminRoutes.post('/teams', admin, async (ctx) => {
   const b = await readJson(ctx, teamSchema);
+  const targetLguId = b.lgu_id ?? ctx.user.lgu_id;
+  if (!(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]).includes(targetLguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
+  const [targetLgu] = await sql`SELECT id FROM lgus WHERE id = ${targetLguId} AND is_active`;
+  if (!targetLgu) throw badRequest('Choose an active jurisdiction.');
   if (b.agency_id) {
-    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) AND is_active`;
+    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ${targetLguId} AND is_active`;
     if (!agency) throw badRequest('Choose an active agency from your LGU.');
   }
   const [t] = await sql`
     INSERT INTO maintenance_teams (lgu_id, name, agency_id, description, is_active)
-    VALUES (${ctx.user.lgu_id}, ${b.name}, ${b.agency_id ?? null}, ${b.description}, ${b.is_active ?? true}) RETURNING id`;
+    VALUES (${targetLguId}, ${b.name}, ${b.agency_id ?? null}, ${b.description}, ${b.is_active ?? true}) RETURNING id`;
   await audit(sql, { actorId: ctx.user.id, action: 'team.create', targetType: 'team', targetId: t.id, details: b, ip: ctx.ip });
   ctx.json(201, { id: t.id });
 });
 
 adminRoutes.patch('/teams/:id', admin, async (ctx) => {
   const id = parseId(ctx.params.id, 'team id');
-  const b = await readJson(ctx, teamSchema.partial());
+  const b = await readJson(ctx, teamSchema.partial().omit({ lgu_id: true }));
   if (b.is_active === false) {
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM assignments WHERE team_id = ${id} AND is_active`;
     if (n > 0) throw conflict(`This team still has ${n} active task(s). Reassign them first.`);
@@ -463,9 +469,13 @@ adminRoutes.get('/agencies', adminOrStaff, async (ctx) => {
 
 adminRoutes.post('/agencies', admin, async (ctx) => {
   const b = await readJson(ctx, agencySchema);
+  const targetLguId = b.lgu_id ?? ctx.user.lgu_id;
+  if (!(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]).includes(targetLguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
+  const [targetLgu] = await sql`SELECT id FROM lgus WHERE id = ${targetLguId} AND is_active`;
+  if (!targetLgu) throw badRequest('Choose an active jurisdiction.');
   const [a] = await sql`
     INSERT INTO agencies (lgu_id, name, jurisdiction, contact_email, contact_phone, is_active)
-    VALUES (${ctx.user.lgu_id}, ${b.name}, ${b.jurisdiction}, ${b.contact_email}, ${b.contact_phone ?? null}, ${b.is_active ?? true})
+    VALUES (${targetLguId}, ${b.name}, ${b.jurisdiction}, ${b.contact_email}, ${b.contact_phone ?? null}, ${b.is_active ?? true})
     RETURNING id`;
   await audit(sql, { actorId: ctx.user.id, action: 'agency.create', targetType: 'agency', targetId: a.id, details: b, ip: ctx.ip });
   ctx.json(201, { id: a.id });
@@ -473,7 +483,7 @@ adminRoutes.post('/agencies', admin, async (ctx) => {
 
 adminRoutes.patch('/agencies/:id', admin, async (ctx) => {
   const id = parseId(ctx.params.id, 'agency id');
-  const b = await readJson(ctx, agencySchema.partial());
+  const b = await readJson(ctx, agencySchema.partial().omit({ lgu_id: true }));
   const changes = Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined));
   const rows = await sql`UPDATE agencies SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) RETURNING id`;
   if (!rows.length) throw notFound('Agency not found.');
