@@ -221,8 +221,8 @@ platformRoutes.put('/accounts/:id/jurisdictions', platformAdmin, async (ctx) => 
 
 platformRoutes.get('/accounts/:id/jurisdiction-history', platformAdmin, async (ctx) => {
   const id = parseId(ctx.params.id, 'account id');
-  const [account] = await sql`SELECT id FROM users WHERE id = ${id} AND role = 'admin'`;
-  if (!account) throw notFound('Administrator account not found.');
+  const [account] = await sql`SELECT id FROM users WHERE id = ${id} AND role <> 'platform_admin'`;
+  if (!account) throw notFound('Account not found.');
   const items = await sql`
     SELECT h.id, h.lgu_id, l.name AS lgu_name, l.jurisdiction_level, h.action,
            h.changed_at, h.details, u.full_name AS changed_by_name
