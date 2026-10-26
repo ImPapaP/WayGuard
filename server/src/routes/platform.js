@@ -165,9 +165,9 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
     jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).optional(),
     parent_lgu_id: z.number().int().positive().nullable().optional(),
   }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined || v.jurisdiction_level !== undefined || v.parent_lgu_id !== undefined, 'Nothing to update.'));
-  const [currentLgu] = await sql`SELECT id, jurisdiction_level FROM lgus WHERE id = ${id}`;
+  const [currentLgu] = await sql`SELECT id, jurisdiction_level, parent_lgu_id FROM lgus WHERE id = ${id}`;
   if (!currentLgu) throw notFound('LGU not found.');
-  await assertValidParent(sql, { lguId: id, parentId: body.parent_lgu_id !== undefined ? body.parent_lgu_id : null, level: body.jurisdiction_level || currentLgu.jurisdiction_level });
+  await assertValidParent(sql, { lguId: id, parentId: body.parent_lgu_id !== undefined ? body.parent_lgu_id : currentLgu.parent_lgu_id, level: body.jurisdiction_level || currentLgu.jurisdiction_level });
   const [lgu] = await sql`
     UPDATE lgus SET
       is_active = COALESCE(${body.is_active ?? null}, is_active),
