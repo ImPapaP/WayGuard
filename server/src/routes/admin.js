@@ -27,11 +27,12 @@ import { notifyUsers } from '../services/notifications.js';
 
 export const adminRoutes = new Router('/api/admin');
 const admin = requireRole('admin');
+const adminOrStaff = requireRole('admin', 'staff');
 
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
-adminRoutes.get('/reports', admin, async (ctx) => {
+adminRoutes.get('/reports', adminOrStaff, async (ctx) => {
   const { page, pageSize, offset } = pagination(ctx.query, { defaultSize: 20, maxSize: 100 });
   const s = await getSettings(sql, ctx.user.lgu_id);
   const where = adminFilters(ctx.query, ctx.user.lgu_id);
@@ -61,7 +62,7 @@ adminRoutes.get('/reports', admin, async (ctx) => {
 });
 
 // All matching reports for the admin map (no pagination, capped).
-adminRoutes.get('/map', admin, async (ctx) => {
+adminRoutes.get('/map', adminOrStaff, async (ctx) => {
   const where = adminFilters(ctx.query, ctx.user.lgu_id);
   const rows = await sql`
     SELECT r.id, r.code, r.status, r.severity, r.road_name, r.barangay, r.landmark, r.latitude, r.longitude,
@@ -72,7 +73,7 @@ adminRoutes.get('/map', admin, async (ctx) => {
   ctx.json(200, { items: rows });
 });
 
-adminRoutes.get('/barangays', admin, async (ctx) => {
+adminRoutes.get('/barangays', adminOrStaff, async (ctx) => {
   const rows = await sql`
     SELECT barangay, count(*)::int AS n FROM reports
     WHERE lgu_id = ${ctx.user.lgu_id} AND barangay IS NOT NULL AND barangay <> ''
@@ -171,7 +172,7 @@ adminRoutes.post(
 );
 
 // Edit classification details (severity, agency, road info) with history.
-adminRoutes.patch('/reports/:id', admin, async (ctx) => {
+adminRoutes.patch('/reports/:id', adminOrStaff, async (ctx) => {
   const id = parseId(ctx.params.id, 'report id');
   const body = await readJson(ctx, editSchema);
   await sql.begin(async (tx) => {
@@ -205,7 +206,7 @@ adminRoutes.patch('/reports/:id', admin, async (ctx) => {
   ctx.json(200, { ok: true });
 });
 
-adminRoutes.post('/reports/:id/notes', admin, async (ctx) => {
+adminRoutes.post('/reports/:id/notes', adminOrStaff, async (ctx) => {
   const id = parseId(ctx.params.id, 'report id');
   const body = await readJson(ctx, commentSchema);
   const [ownedReport] = await sql`SELECT id FROM reports WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id}`;
@@ -233,7 +234,7 @@ adminRoutes.post('/reports/:id/notes', admin, async (ctx) => {
 // ---------------------------------------------------------------------------
 // Dashboard statistics
 // ---------------------------------------------------------------------------
-adminRoutes.get('/stats', admin, async (ctx) => {
+adminRoutes.get('/stats', adminOrStaff, async (ctx) => {
   ctx.json(200, await computeStats(ctx.query, ctx.user.lgu_id));
 });
 
@@ -245,7 +246,7 @@ const createUserSchema = z
     full_name: text(2, 100, 'Full name'),
     email,
     phone,
-    role: z.enum(['citizen', 'admin', 'maintenance']),
+    role: z.enum(['citizen', 'admin', 'staff', 'maintenance']),
     team_id: z.number().int().positive().nullable().optional(),
     temporary_password: password,
   })
@@ -281,7 +282,7 @@ async function loadUserForAdmin(db, id, lguId) {
 adminRoutes.get('/users', admin, async (ctx) => {
   const { page, pageSize, offset } = pagination(ctx.query, { defaultSize: 20 });
   const conds = [sql`u.lgu_id = ${ctx.user.lgu_id}`];
-  if (['citizen', 'admin', 'maintenance'].includes(ctx.query.role)) conds.push(sql`u.role = ${ctx.query.role}`);
+  if (['citizen', 'admin', 'staff', 'maintenance'].includes(ctx.query.role)) conds.push(sql`u.role = ${ctx.query.role}`);
   if (ctx.query.status === 'active') conds.push(sql`u.is_active`);
   if (ctx.query.status === 'inactive') conds.push(sql`NOT u.is_active`);
   if (ctx.query.q && String(ctx.query.q).trim()) {
