@@ -31,34 +31,36 @@ export const settingsSchema = z
   })
   .partial();
 
-let cache = null;
-let cacheAt = 0;
+const cache = new Map();
+const CACHE_MS = 5000;
 
-export async function getSettings(db = sql) {
-  if (cache && Date.now() - cacheAt < 5000 && db === sql) return cache;
-  const rows = await db`SELECT key, value FROM settings`;
+export async function getSettings(db = sql, lguId = 1) {
+  const cacheKey = String(lguId);
+  if (cache.has(cacheKey) && Date.now() - cache.get(cacheKey).at < CACHE_MS && db === sql) {
+    return cache.get(cacheKey).value;
+  }
+  const rows = await db`SELECT key, value FROM settings WHERE lgu_id = ${lguId}`;
   const out = { ...DEFAULT_SETTINGS };
   for (const row of rows) {
     if (row.key in DEFAULT_SETTINGS) out[row.key] = row.value;
   }
-  if (db === sql) {
-    cache = out;
-    cacheAt = Date.now();
-  }
+  if (db === sql) cache.set(cacheKey, { value: out, at: Date.now() });
   return out;
 }
 
-export function invalidateSettingsCache() {
-  cache = null;
+export function invalidateSettingsCache(lguId = null) {
+  if (lguId === null || lguId === undefined) cache.clear();
+  else cache.delete(String(lguId));
 }
 
-export async function updateSettings(changes, actorId, db = sql) {
+export async function updateSettings(changes, actorId, db = sql, lguId = 1) {
   for (const [key, value] of Object.entries(changes)) {
     await db`
-      INSERT INTO settings (key, value, updated_at, updated_by)
-      VALUES (${key}, ${db.json(value)}, now(), ${actorId})
-      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`;
+      INSERT INTO settings (lgu_id, key, value, updated_at, updated_by)
+      VALUES (${lguId}, ${key}, ${db.json(value)}, now(), ${actorId})
+      ON CONFLICT (lgu_id, key) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`;
   }
-  invalidateSettingsCache();
-  return getSettings(db);
+  invalidateSettingsCache(lguId);
+  return getSettings(db, lguId);
 }
