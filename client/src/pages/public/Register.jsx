@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LuEye, LuEyeOff } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { useDocumentTitle } from '../../lib/hooks.js';
@@ -26,6 +27,8 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   if (user) return <Navigate to={safeNext(query.next, user.role)} />;
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -82,21 +85,29 @@ export default function Register() {
         />
         <TextField
           label="Password"
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           autoComplete="new-password"
           hint="At least 8 characters, with a letter and a number."
           value={form.password}
           onChange={set('password')}
           error={errors.password}
         />
+        <button type="button" className="linkish password-visibility" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
+          {showPassword ? <LuEyeOff aria-hidden /> : <LuEye aria-hidden />}
+          {showPassword ? 'Hide password' : 'Show password'}
+        </button>
         <TextField
           label="Repeat password"
-          type="password"
+          type={showConfirm ? 'text' : 'password'}
           autoComplete="new-password"
           value={form.confirm}
           onChange={set('confirm')}
           error={errors.confirm}
         />
+        <button type="button" className="linkish password-visibility" aria-label={showConfirm ? 'Hide confirmation password' : 'Show confirmation password'} aria-pressed={showConfirm} onClick={() => setShowConfirm((shown) => !shown)}>
+          {showConfirm ? <LuEyeOff aria-hidden /> : <LuEye aria-hidden />}
+          {showConfirm ? 'Hide password' : 'Show password'}
+        </button>
         <Button type="submit" variant="navy" size="lg" block loading={busy}>
           Create account
         </Button>
