@@ -15,6 +15,7 @@ publicRoutes.get('/config', async (ctx) => {
   ctx.json(200, {
     lgu_name: s.lgu_name,
     lgus: await sql`SELECT id, name, slug, city, province FROM lgus WHERE is_active ORDER BY name`,
+    jurisdiction_boundary: ctx.user?.lgu_id ? (await sql`SELECT jurisdiction_boundary FROM lgus WHERE id = ${ctx.user.lgu_id}`)[0]?.jurisdiction_boundary ?? null : null,
     map_center: s.map_center,
     max_photos_per_report: s.max_photos_per_report,
     max_photo_mb: Math.round(config.maxPhotoBytes / 1048576),
