@@ -662,3 +662,94 @@
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   color: #8796ad;
 }
+
+
+/* Citizen registration page */
+.auth:has(.register-heading) .auth__card {
+  max-width: 500px;
+}
+.auth:has(.register-heading) .auth__mobile-logo {
+  height: 148px;
+  margin-bottom: var(--s4);
+}
+.auth:has(.register-heading) .auth__mobile-logo .logo {
+  height: 148px;
+}
+.register-heading {
+  margin-bottom: var(--s4);
+}
+.register-heading__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--s3);
+  border-radius: 16px;
+  background: rgba(250, 174, 11, 0.18);
+  color: var(--navy);
+}
+.register-heading__icon svg {
+  width: 25px;
+  height: 25px;
+}
+.register-heading .eyebrow {
+  margin: 0 0 var(--s1);
+  color: var(--navy-500);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.register-heading h1 {
+  margin: 0 0 var(--s2);
+  line-height: 1.12;
+}
+.register-heading > .muted {
+  margin: 0;
+  line-height: 1.55;
+}
+.register-benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 var(--s5);
+}
+.register-benefits span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  color: var(--navy);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.register-benefits svg {
+  width: 16px;
+  height: 16px;
+  color: var(--navy-500);
+  flex: none;
+}
+.register-form {
+  gap: var(--s3);
+}
+@media (max-width: 480px) {
+  .auth__form {
+    padding: var(--s5) var(--s4);
+  }
+  .auth:has(.register-heading) .auth__mobile-logo {
+    height: 132px;
+  }
+  .auth:has(.register-heading) .auth__mobile-logo .logo {
+    height: 132px;
+  }
+  .register-benefits {
+    gap: 6px;
+  }
+  .register-benefits span {
+    font-size: 11px;
+    padding: 7px 9px;
+  }
+}
