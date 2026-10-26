@@ -1,0 +1,6 @@
+Wayguard Android builds
+Source commit: aaaf6fb5fd739aea25889ea6573e128f8073f2d4
+Built: 2026-10-26 13:26 UTC
+
+e219d59a66f3f121bddb9562a87b82ecef59cb93994d5af89e41088b63a56e57  wayguard-citizen-app.apk
+2076b60e6a47652d8df7dbbc5ad7a115865986b0669e2a646d9c009607c2a5f1  wayguard-crew-app.apk
