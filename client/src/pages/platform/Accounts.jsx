@@ -155,7 +155,7 @@ export default function Accounts() {
                         <Button size="sm" variant="secondary" onClick={() => setStatusDrafts((old) => ({ ...old, [account.id]: !currentActive(account) }))}>
                           {currentActive(account) ? <><LuCircleX aria-hidden /> Deactivate</> : <><LuCircleCheck aria-hidden /> Activate</>}
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={() => viewHistory(account)} disabled={account.role !== 'admin' && currentRole(account) !== 'admin'}>
+                        <Button size="sm" variant="secondary" onClick={() => viewHistory(account)}>
                           <LuHistory aria-hidden /> {historyId === account.id ? 'Hide history' : 'Assignment history'}
                         </Button>
                       </div>
