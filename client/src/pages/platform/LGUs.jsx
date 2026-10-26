@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth.jsx';
 import { api } from '../../lib/api.js';
 import { useApi, useDocumentTitle } from '../../lib/hooks.js';
 import { useToast } from '../../lib/toast.jsx';
-import { Alert, Button, EmptyState, Loading, TextField } from '../../components/ui.jsx';
+import { Alert, Button, EmptyState, Loading, SelectField, TextField } from '../../components/ui.jsx';
 import { PublicLayout } from '../../components/Shells.jsx';
 
 const EMPTY_FORM = {
@@ -14,6 +14,8 @@ const EMPTY_FORM = {
   slug: '',
   city: '',
   province: '',
+  jurisdiction_level: 'municipality',
+  parent_lgu_id: '',
   map_latitude: '',
   map_longitude: '',
   jurisdiction_boundary: '',
@@ -47,6 +49,7 @@ export default function LGUs() {
     try {
       const result = await api.post('/api/platform/lgus', {
         ...form,
+        parent_lgu_id: form.parent_lgu_id ? Number(form.parent_lgu_id) : null,
         slug: form.slug.trim() || undefined,
         admin_phone: form.admin_phone.trim() || null,
         jurisdiction_boundary: form.jurisdiction_boundary.trim() ? JSON.parse(form.jurisdiction_boundary) : undefined,
@@ -138,6 +141,21 @@ export default function LGUs() {
                 <TextField label="Province" value={form.province} onChange={set('province')} error={fieldErrors.province} required />
               </div>
               <div className="form-row form-row--2">
+                <SelectField label="Jurisdiction level" value={form.jurisdiction_level} onChange={set('jurisdiction_level')} options={[
+                  { value: 'island_group', label: 'Island group' },
+                  { value: 'region', label: 'Region' },
+                  { value: 'province', label: 'Province' },
+                  { value: 'independent_city', label: 'Independent city' },
+                  { value: 'city', label: 'City' },
+                  { value: 'municipality', label: 'Municipality' },
+                  { value: 'barangay', label: 'Barangay' },
+                ]} error={fieldErrors.jurisdiction_level} />
+                <SelectField label="Parent jurisdiction (optional)" value={form.parent_lgu_id} onChange={set('parent_lgu_id')} options={[
+                  { value: '', label: 'No parent / top level' },
+                  ...(data?.items || []).filter((item) => item.is_active).map((item) => ({ value: String(item.id), label: `${item.name} — ${item.jurisdiction_level?.replaceAll('_', ' ')}` })),
+                ]} error={fieldErrors.parent_lgu_id} />
+              </div>
+              <div className="form-row form-row--2">
                 <TextField label="Map latitude (optional)" type="number" step="any" value={form.map_latitude} onChange={set('map_latitude')} error={fieldErrors.map_latitude} placeholder="e.g. 14.7678" />
                 <TextField label="Map longitude (optional)" type="number" step="any" value={form.map_longitude} onChange={set('map_longitude')} error={fieldErrors.map_longitude} placeholder="e.g. 120.9586" />
               </div>
@@ -181,6 +199,7 @@ export default function LGUs() {
                         <h3 style={{ margin: 0 }}>{lgu.name}</h3>
                         <p className="muted small" style={{ margin: '4px 0' }}>{[lgu.city, lgu.province].filter(Boolean).join(', ')}</p>
                         <p className="muted small" style={{ margin: '4px 0' }}>Workspace: <code>{lgu.slug}</code></p>
+                        <p className="muted small" style={{ margin: '4px 0' }}>Jurisdiction: {lgu.jurisdiction_level?.replaceAll('_', ' ') || 'municipality'}{lgu.parent_lgu_id ? ` · Parent ID ${lgu.parent_lgu_id}` : ' · Top level'}</p>
                       </div>
                       <span className={`badge ${lgu.is_active ? 'badge--resolved' : 'badge--rejected'}`}>
                         {lgu.is_active ? 'Active' : 'Inactive'}
