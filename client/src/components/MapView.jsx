@@ -192,8 +192,8 @@ function LeafletMap({
     if (boundary) {
       const geometry = boundary.type === 'Feature' ? boundary.geometry : boundary;
       const toLatLngs = (ring) => ring.map(([lng, lat]) => [lat, lng]);
-      const rings = geometry.type === 'Polygon' ? geometry.coordinates : geometry.coordinates.flat();
-      jurisdictionLayer.current = L.polygon(rings.map(toLatLngs), { color: '#FAAE0B', weight: 3, opacity: 1, fillColor: '#FAAE0B', fillOpacity: 0.08, interactive: false }).addTo(m);
+      const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+      jurisdictionLayer.current = L.polygon(polygons.map((rings) => rings.map(toLatLngs)), { color: '#FAAE0B', weight: 3, opacity: 1, fillColor: '#FAAE0B', fillOpacity: 0.08, interactive: false }).addTo(m);
       m.fitBounds(jurisdictionLayer.current.getBounds(), { padding: [28, 28], maxZoom: 13, animate: false });
     }
     map.current = m;
