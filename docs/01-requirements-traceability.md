@@ -101,7 +101,7 @@ cannot skip review…*, *resolved reports are final*.
 | --- | --- | --- |
 | 1 | GPS depends on hardware, permission and signal | GPS is optional; denial, timeout, unavailable and non-https cases each show an explanation and point to the map pin |
 | 2 | Manual location when GPS unavailable | Map pin (click/drag), address search, typed coordinates |
-| 3 | LGU must have authorized personnel | Administrator and maintenance roles; staff accounts created only by administrators; first admin via `npm run create-admin` |
+| 3 | LGUs must have authorized personnel and separate workspaces | Platform administrator provisions each LGU and its first administrator; LGU admins create tenant-scoped staff and maintenance accounts; backend and database enforce tenant isolation |
 | 4 | Internet needed unless offline is implemented | The installed PWA opens offline (cached app shell) and shows an offline notice; submitting and loading reports need a connection (offline submission is **not** implemented) |
 | 5 | Identify the agency responsible for each road | Road type on each report, agencies table, automatic routing by road type (settings), agency confirmed/changed during verification, rejection reason for out-of-jurisdiction reports |
 | 6 | Public reports must not expose unnecessary personal data | Public API returns only verified reports and non-personal fields; photos and reporter identity are never public; exports omit reporter details; EXIF/GPS removed from photos |
