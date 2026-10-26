@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   province: '',
   map_latitude: '',
   map_longitude: '',
+  jurisdiction_boundary: '',
   admin_name: '',
   admin_email: '',
   admin_phone: '',
@@ -46,6 +47,7 @@ export default function LGUs() {
         ...form,
         slug: form.slug.trim() || undefined,
         admin_phone: form.admin_phone.trim() || null,
+        jurisdiction_boundary: form.jurisdiction_boundary.trim() ? JSON.parse(form.jurisdiction_boundary) : undefined,
       });
       setCreatedAccount({
         lguName: result.lgu.name,
@@ -56,7 +58,7 @@ export default function LGUs() {
       toast(`${result.lgu.name} was created with its own LGU administrator.`);
       reload();
     } catch (err) {
-      setFormError(err);
+      setFormError(err instanceof SyntaxError ? { message: 'Jurisdiction boundary must be valid GeoJSON.' } : err);
     } finally {
       setBusy(false);
     }
@@ -115,6 +117,7 @@ export default function LGUs() {
               </div>
               <p className="muted small">Enter both coordinates for this LGU's default map centre. You can also set the centre later in System settings.</p>
               <TextField label="Workspace slug" value={form.slug} onChange={set('slug')} error={fieldErrors.slug} placeholder="Optional, e.g. meycauayan" hint="Optional. Used as a stable identifier for this workspace." />
+              <label className="field"><span className="field__label">Jurisdiction boundary (GeoJSON, optional)</span><textarea className="input" rows={5} value={form.jurisdiction_boundary} onChange={set('jurisdiction_boundary')} placeholder="Paste GeoJSON Polygon or MultiPolygon" spellCheck={false} /><span className="field__hint">Use the official municipality boundary. Coordinates must be [longitude, latitude].</span></label>
               <hr />
               <h3>First LGU administrator</h3>
               <TextField label="Administrator full name" value={form.admin_name} onChange={set('admin_name')} error={fieldErrors.admin_name} required />
