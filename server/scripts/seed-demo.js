@@ -259,7 +259,7 @@ async function main() {
       for (const [name, jurisdiction, email, phone] of AGENCIES) {
         const [a] = await tx`
           INSERT INTO agencies (name, jurisdiction, contact_email, contact_phone) VALUES (${name}, ${jurisdiction}, ${email}, ${phone})
-          ON CONFLICT (lower(name)) DO UPDATE SET jurisdiction = EXCLUDED.jurisdiction RETURNING id`;
+          ON CONFLICT (lgu_id, (lower(name))) DO UPDATE SET jurisdiction = EXCLUDED.jurisdiction RETURNING id`;
         agencyIds[jurisdiction] = a.id;
       }
       const teamIds = {};
@@ -267,7 +267,7 @@ async function main() {
         const [t] = await tx`
           INSERT INTO maintenance_teams (name, agency_id, description)
           VALUES (${name}, ${agencyIds.city_municipal}, 'Demo maintenance team')
-          ON CONFLICT (lower(name)) DO UPDATE SET is_active = TRUE RETURNING id`;
+          ON CONFLICT (lgu_id, (lower(name))) DO UPDATE SET is_active = TRUE RETURNING id`;
         teamIds[name] = t.id;
       }
 
@@ -295,11 +295,13 @@ async function main() {
           barangay: agencyIds.barangay,
         },
       };
+      // Update the default tenant's display name while keeping tenant ownership.
+      await tx`UPDATE lgus SET name = 'City of Malolos (Demo LGU)', city = 'Malolos', province = 'Bulacan', updated_at = now() WHERE id = 1`;
       // Settings an administrator already saved are kept.
       for (const [key, value] of Object.entries(settings)) {
         await tx`
-          INSERT INTO settings (key, value, updated_by) VALUES (${key}, ${tx.json(value)}, ${adminId})
-          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by
+          INSERT INTO settings (lgu_id, key, value, updated_by) VALUES (1, ${key}, ${tx.json(value)}, ${adminId})
+          ON CONFLICT (lgu_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by
           WHERE settings.updated_by IS NULL`;
       }
 
