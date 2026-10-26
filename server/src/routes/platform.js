@@ -32,6 +32,8 @@ const createLguSchema = z.object({
   slug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letters, numbers and hyphens for the LGU slug.').optional(),
   city: text(2, 100, 'City / municipality'),
   province: text(2, 100, 'Province'),
+  jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).default('municipality'),
+  parent_lgu_id: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().int().positive()]).transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_latitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-90).max(90)])
     .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_longitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-180).max(180)])
@@ -50,7 +52,7 @@ const createLguSchema = z.object({
 
 platformRoutes.get('/lgus', platformAdmin, async (ctx) => {
   const rows = await sql`
-    SELECT l.id, l.name, l.slug, l.city, l.province, l.is_active, l.created_at, l.jurisdiction_boundary,
+    SELECT l.id, l.name, l.slug, l.city, l.province, l.jurisdiction_level, l.parent_lgu_id, l.is_active, l.created_at, l.jurisdiction_boundary,
       (SELECT count(*)::int FROM users u WHERE u.lgu_id = l.id AND u.role IN ('admin', 'staff', 'maintenance') AND u.is_active) AS staff_count,
       (SELECT count(*)::int FROM reports r WHERE r.lgu_id = l.id) AS report_count,
       (SELECT u.full_name FROM users u WHERE u.lgu_id = l.id AND u.role = 'admin' ORDER BY u.created_at, u.id LIMIT 1) AS administrator_name
@@ -78,9 +80,9 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
   const passwordHash = await hashPassword(body.temporary_password);
   const created = await sql.begin(async (tx) => {
     const [lgu] = await tx`
-      INSERT INTO lgus (name, slug, city, province, jurisdiction_boundary)
-      VALUES (${body.name}, ${slug}, ${body.city}, ${body.province}, ${body.jurisdiction_boundary ? tx.json(body.jurisdiction_boundary) : null})
-      RETURNING id, name, slug, city, province, is_active, created_at, jurisdiction_boundary`;
+      INSERT INTO lgus (name, slug, city, province, jurisdiction_level, parent_lgu_id, jurisdiction_boundary)
+      VALUES (${body.name}, ${slug}, ${body.city}, ${body.province}, ${body.jurisdiction_level}, ${body.parent_lgu_id}, ${body.jurisdiction_boundary ? tx.json(body.jurisdiction_boundary) : null})
+      RETURNING id, name, slug, city, province, jurisdiction_level, parent_lgu_id, is_active, created_at, jurisdiction_boundary`;
 
     // Start from safe defaults, never copy another LGU's map centre or
     // agency ID mappings. Those belong to a specific jurisdiction.
@@ -109,7 +111,7 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
       action: 'lgu.create',
       targetType: 'lgu',
       targetId: lgu.id,
-      details: { name: lgu.name, slug: lgu.slug, city: lgu.city, province: lgu.province, admin_email: admin.email },
+      details: { name: lgu.name, slug: lgu.slug, city: lgu.city, province: lgu.province, jurisdiction_level: lgu.jurisdiction_level, parent_lgu_id: lgu.parent_lgu_id, admin_email: admin.email },
       ip: ctx.ip,
     });
     return { lgu, admin };
@@ -122,18 +124,22 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
   const body = await readJson(ctx, z.object({
     is_active: z.boolean().optional(),
     jurisdiction_boundary: z.union([z.record(z.any()), z.null()]).optional().refine(validBoundary, 'Enter a valid GeoJSON Polygon or MultiPolygon with closed coordinate rings.'),
-  }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined, 'Nothing to update.'));
+    jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).optional(),
+    parent_lgu_id: z.number().int().positive().nullable().optional(),
+  }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined || v.jurisdiction_level !== undefined || v.parent_lgu_id !== undefined, 'Nothing to update.'));
   const [lgu] = await sql`
     UPDATE lgus SET
       is_active = COALESCE(${body.is_active ?? null}, is_active),
       jurisdiction_boundary = CASE WHEN ${body.jurisdiction_boundary !== undefined} THEN ${body.jurisdiction_boundary === null ? null : sql.json(body.jurisdiction_boundary)} ELSE jurisdiction_boundary END,
+      jurisdiction_level = COALESCE(${body.jurisdiction_level ?? null}, jurisdiction_level),
+      parent_lgu_id = CASE WHEN ${body.parent_lgu_id !== undefined} THEN ${body.parent_lgu_id} ELSE parent_lgu_id END,
       updated_at = now()
     WHERE id = ${id}
-    RETURNING id, name, slug, city, province, is_active, created_at, jurisdiction_boundary`;
+    RETURNING id, name, slug, city, province, jurisdiction_level, parent_lgu_id, is_active, created_at, jurisdiction_boundary`;
   if (!lgu) throw notFound('LGU not found.');
   if (body.is_active === false) {
     await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE lgu_id = ${id})`;
   }
-  await audit(sql, { actorId: ctx.user.id, action: 'lgu.update', targetType: 'lgu', targetId: id, details: { ...(body.is_active !== undefined ? { is_active: body.is_active } : {}), ...(body.jurisdiction_boundary !== undefined ? { jurisdiction_boundary_updated: true } : {}) }, ip: ctx.ip });
+  await audit(sql, { actorId: ctx.user.id, action: 'lgu.update', targetType: 'lgu', targetId: id, details: { ...(body.is_active !== undefined ? { is_active: body.is_active } : {}), ...(body.jurisdiction_boundary !== undefined ? { jurisdiction_boundary_updated: true } : {}), ...(body.jurisdiction_level !== undefined ? { jurisdiction_level: body.jurisdiction_level } : {}), ...(body.parent_lgu_id !== undefined ? { parent_lgu_id: body.parent_lgu_id } : {}) }, ip: ctx.ip });
   ctx.json(200, { lgu });
 });
