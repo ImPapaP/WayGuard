@@ -66,9 +66,6 @@ export default function Dashboard() {
       ) : (
         <div className="stack stack--lg">
           {s.demo_reports > 0 && (
-            <p className="demo-note">
-              Includes {s.demo_reports} demonstration reports created by the seed script. They are tagged “Demo” throughout.
-            </p>
           )}
 
           <section aria-label="Work queues">
