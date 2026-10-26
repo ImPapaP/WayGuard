@@ -33,8 +33,11 @@ export async function notifyUsers(db, { userIds, reportId = null, type, title, b
   return rows.length;
 }
 
-export async function adminIds(db) {
-  const rows = await (db || sql)`SELECT id FROM users WHERE role = 'admin' AND is_active`;
+export async function adminIds(db, lguId = null) {
+  const rows = await (db || sql)`
+    SELECT id FROM users
+    WHERE role = 'admin' AND is_active
+      AND (${lguId}::int IS NULL OR lgu_id = ${lguId})`;
   return rows.map((r) => r.id);
 }
 
