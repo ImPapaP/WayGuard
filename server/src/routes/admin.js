@@ -402,7 +402,7 @@ const agencySchema = z.object({
   is_active: z.boolean().optional(),
 });
 
-adminRoutes.get('/teams', admin, async (ctx) => {
+adminRoutes.get('/teams', adminOrStaff, async (ctx) => {
   const rows = await sql`
     SELECT t.id, t.name, t.description, t.is_active, t.agency_id, ag.name AS agency_name, t.created_at,
            (SELECT count(*)::int FROM users u WHERE u.team_id = t.id AND u.is_active) AS member_count,
@@ -445,7 +445,7 @@ adminRoutes.patch('/teams/:id', admin, async (ctx) => {
   ctx.json(200, { ok: true });
 });
 
-adminRoutes.get('/agencies', admin, async (ctx) => {
+adminRoutes.get('/agencies', adminOrStaff, async (ctx) => {
   const rows = await sql`
     SELECT a.*, (SELECT count(*)::int FROM reports r WHERE r.agency_id = a.id) AS report_count
     FROM agencies a WHERE a.lgu_id = ${ctx.user.lgu_id} ORDER BY a.is_active DESC, a.name`;
