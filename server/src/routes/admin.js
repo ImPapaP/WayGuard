@@ -247,6 +247,7 @@ const createUserSchema = z
     email,
     phone,
     role: z.enum(['citizen', 'admin', 'staff', 'maintenance']),
+    lgu_id: z.number().int().positive().optional(),
     team_id: z.number().int().positive().nullable().optional(),
     temporary_password: password,
   })
@@ -305,9 +306,11 @@ adminRoutes.get('/users', admin, async (ctx) => {
 
 adminRoutes.post('/users', admin, async (ctx) => {
   const body = await readJson(ctx, createUserSchema);
+  const lguId = body.lgu_id ?? ctx.user.lgu_id;
+  if (!(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]).includes(lguId)) throw badRequest('Choose a jurisdiction within your assigned scope.');
   const teamId = body.role === 'maintenance' ? body.team_id : null;
   if (teamId) {
-    const [t] = await sql`SELECT 1 FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) AND is_active`;
+    const [t] = await sql`SELECT 1 FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ${lguId} AND is_active`;
     if (!t) throw badRequest('Choose an active team.');
   }
   const [exists] = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.email}`;
@@ -315,8 +318,14 @@ adminRoutes.post('/users', admin, async (ctx) => {
   const hash = await hashPassword(body.temporary_password);
   const [u] = await sql`
     INSERT INTO users (email, password_hash, full_name, phone, role, lgu_id, team_id, must_change_password)
-    VALUES (${body.email}, ${hash}, ${body.full_name}, ${body.phone}, ${body.role}, ${ctx.user.lgu_id}, ${teamId}, TRUE)
+    VALUES (${body.email}, ${hash}, ${body.full_name}, ${body.phone}, ${body.role}, ${lguId}, ${teamId}, TRUE)
     RETURNING id`;
+  if (body.role === 'admin') {
+    await sql`INSERT INTO admin_jurisdiction_assignments (user_id, lgu_id, assigned_by)
+      VALUES (${u.id}, ${lguId}, ${ctx.user.id}) ON CONFLICT (user_id, lgu_id) DO NOTHING`;
+    await sql`INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+      VALUES (${u.id}, ${lguId}, 'assigned', ${ctx.user.id}, ${sql.json({ source: 'local_admin_creation' })})`;
+  }
   await audit(sql, {
     actorId: ctx.user.id,
     action: 'user.create',
@@ -325,14 +334,14 @@ adminRoutes.post('/users', admin, async (ctx) => {
     details: { email: body.email, role: body.role, team_id: teamId },
     ip: ctx.ip,
   });
-  ctx.json(201, { user: await loadUserForAdmin(sql, u.id, ctx.user.accessible_lgu_ids || [ctx.user.lgu_id]) });
+  ctx.json(201, { user: await loadUserForAdmin(sql, u.id, ctx.user.accessible_lgu_ids || [ctx.user.lgu_id, lguId]) });
 });
 
 adminRoutes.patch('/users/:id', admin, async (ctx) => {
   const id = parseId(ctx.params.id, 'user id');
   const body = await readJson(ctx, updateUserSchema);
   const result = await sql.begin(async (tx) => {
-    const [current] = await tx`SELECT * FROM users WHERE id = ${id} AND lgu_id = ${ctx.user.lgu_id} FOR UPDATE`;
+    const [current] = await tx`SELECT * FROM users WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) FOR UPDATE`;
     if (!current) throw notFound('User not found.');
     const next = { ...current, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) };
     if (next.role !== 'maintenance') next.team_id = null;
@@ -340,7 +349,7 @@ adminRoutes.patch('/users/:id', admin, async (ctx) => {
       throw badRequest('Maintenance personnel must belong to a team.', { fields: { team_id: 'Choose a team.' } });
     }
     if (next.team_id && next.team_id !== current.team_id) {
-      const [t] = await tx`SELECT 1 FROM maintenance_teams WHERE id = ${next.team_id} AND lgu_id = ${ctx.user.lgu_id} AND is_active`;
+      const [t] = await tx`SELECT 1 FROM maintenance_teams WHERE id = ${next.team_id} AND lgu_id = ${current.lgu_id} AND is_active`;
       if (!t) throw badRequest('Choose an active team.');
     }
     if (id === ctx.user.id && (next.role !== 'admin' || !next.is_active)) {
