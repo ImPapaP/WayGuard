@@ -9,7 +9,7 @@ import { computeStats } from '../services/stats.js';
 import { loadExportRows, toCsv, reportsPdf, summaryPdf } from '../services/exporter.js';
 
 export const exportRoutes = new Router('/api/admin/exports');
-const admin = requireRole('admin');
+const admin = requireRole('admin', 'staff');
 const limiter = new RateLimiter({ windowMs: 10 * 60 * 1000, max: 30, name: 'exports' });
 
 function stamp() {
