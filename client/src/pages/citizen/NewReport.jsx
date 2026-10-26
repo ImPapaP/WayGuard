@@ -1,8 +1,9 @@
 // Pothole report form (FR-02 to FR-07): location, photos, description and
 // severity, sent as one multipart request.
 import { useRef, useState } from 'react';
-import { LuCircleCheck, LuSend, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleCheck, LuSend, LuTriangleAlert, LuCloudUpload } from 'react-icons/lu';
 import { upload } from '../../lib/api.js';
+import { saveToOutbox } from '../../lib/outbox.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { useDocumentTitle } from '../../lib/hooks.js';
 import { Link, useLocation } from '../../lib/router.jsx';
@@ -34,7 +35,7 @@ function validate(form, location, photos) {
 
 export default function NewReport() {
   useDocumentTitle('Report a pothole');
-  const { config } = useAuth();
+  const { config, user } = useAuth();
   const { query } = useLocation();
   // Coming from the map's Report button: location and severity are filled in.
   const [form, setForm] = useState(() => ({
@@ -83,15 +84,29 @@ export default function NewReport() {
       first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    const fd = new FormData();
+    const fields = {};
     for (const [k, val] of Object.entries(form)) {
-      if (k === 'hazards') fd.append('hazards', val.join(','));
-      else fd.append(k, typeof val === 'string' ? val.trim() : val);
+      fields[k] = k === 'hazards' ? val.join(',') : typeof val === 'string' ? val.trim() : String(val);
     }
-    fd.append('latitude', location.lat.toFixed(7));
-    fd.append('longitude', location.lng.toFixed(7));
-    fd.append('location_source', location.source);
-    if (location.accuracy) fd.append('location_accuracy_m', String(location.accuracy));
+    fields.latitude = location.lat.toFixed(7);
+    fields.longitude = location.lng.toFixed(7);
+    fields.location_source = location.source;
+    if (location.accuracy) fields.location_accuracy_m = String(location.accuracy);
+    const keepOffline = async () => {
+      await saveToOutbox(user.id, fields, photos);
+      setDone({ offline: true });
+      window.scrollTo(0, 0);
+    };
+    if (navigator.onLine === false) {
+      try {
+        await keepOffline();
+      } catch (err) {
+        setError(err.message);
+      }
+      return;
+    }
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.append(k, v);
     photos.forEach((p, i) => fd.append('photos', p.file, p.file.name || `photo-${i + 1}.jpg`));
     setProgress(0);
     try {
@@ -99,11 +114,43 @@ export default function NewReport() {
       setDone(res);
       window.scrollTo(0, 0);
     } catch (err) {
+      if (err.code === 'network') {
+        // Signal dropped while sending: keep it on the phone instead.
+        try {
+          await keepOffline();
+          return;
+        } catch {
+          /* fall through to the error below */
+        }
+      }
       setErrors(err.fields || {});
       setError(err.message);
     } finally {
       setProgress(null);
     }
+  }
+
+  if (done?.offline) {
+    return (
+      <div className="container page page--narrow">
+        <div className="panel success-card">
+          <span className="success-card__icon success-card__icon--wait" aria-hidden>
+            <LuCloudUpload />
+          </span>
+          <h1>Saved on this phone</h1>
+          <p>
+            You have no signal right now, so your report and photos are kept safely on this phone. Wayguard will send them
+            automatically as soon as you are back online — you don&apos;t need to keep this page open.
+          </p>
+          <div className="cluster" style={{ justifyContent: 'center', marginTop: 20 }}>
+            <Link to="/app/reports" className="btn btn--navy">See waiting reports</Link>
+            <button type="button" className="btn btn--secondary" onClick={() => { setDone(null); setForm(EMPTY); setLocation(null); setPhotos([]); }}>
+              Report another pothole
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (done) {

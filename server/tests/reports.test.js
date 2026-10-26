@@ -200,3 +200,43 @@ test('large camera photos are resized and still accepted', async () => {
   const [p] = await getSql()`SELECT width, height FROM report_photos WHERE report_id = ${res.data.report.id}`;
   assert.equal(Math.max(p.width, p.height), 1600);
 });
+
+test('"I saw this too": residents confirm open reports, raising priority; one each, undoable', async () => {
+  const reporter = await login(server.base, await createUser({ role: 'citizen' }));
+  const neighbour = await login(server.base, await createUser({ role: 'citizen' }));
+  const other = await login(server.base, await createUser({ role: 'citizen' }));
+  const admin = await login(server.base, await createUser({ role: 'admin' }));
+  const created = await submitReport(reporter, { latitude: '14.8591', longitude: '120.8301', road_name: 'Confirm Test Road' });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const id = created.data.report.id;
+
+  const before = (await admin.get('/api/reports/' + id)).data.report.priority.score;
+  assert.equal((await reporter.post(`/api/reports/${id}/confirm`, {})).status, 409, 'own report cannot be confirmed');
+  assert.equal((await admin.post(`/api/reports/${id}/confirm`, {})).status, 403, 'only residents confirm');
+  const first = await neighbour.post(`/api/reports/${id}/confirm`, {});
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  assert.deepEqual(first.data, { confirmations: 1, confirmed_by_me: true });
+  assert.equal((await neighbour.post(`/api/reports/${id}/confirm`, {})).data.confirmations, 1, 'confirming twice counts once');
+  await other.post(`/api/reports/${id}/confirm`, {});
+
+  const detail = (await admin.get('/api/reports/' + id)).data.report;
+  assert.equal(detail.confirmations, 2);
+  assert.equal(detail.priority.confirmations, 10);
+  assert.ok(detail.priority.score > before, 'confirmations raise the priority score');
+  const list = await admin.get('/api/admin/reports?sort=priority&page_size=100');
+  const row = list.data.items.find((r) => r.id === id);
+  assert.equal(row.confirmations, 2);
+  assert.equal(row.priority, detail.priority.score);
+  const scores = list.data.items.map((r) => r.priority);
+  assert.deepEqual(scores, [...scores].sort((a, b) => b - a), 'priority sort is highest first');
+
+  const notes = (await reporter.get('/api/notifications')).data.items;
+  assert.ok(notes.some((n) => n.type === 'report_confirmed'), 'the reporter hears that someone confirmed it');
+
+  const undone = await neighbour.delete(`/api/reports/${id}/confirm`);
+  assert.deepEqual(undone.data, { confirmations: 1, confirmed_by_me: false });
+
+  const nearby = await other.get('/api/reports/nearby?lat=14.8591&lng=120.8301');
+  const n = nearby.data.items.find((x) => x.id === id);
+  assert.ok(n && n.confirmed_by_me === true && n.confirmations === 1 && n.is_mine === false);
+});

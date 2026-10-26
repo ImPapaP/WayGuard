@@ -7,6 +7,7 @@ import { Button, Alert, StatusBadge } from './ui.jsx';
 import { api, qs } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { formatCoords, formatDistance, timeAgo } from '../lib/format.js';
+import ConfirmButton from './ConfirmButton.jsx';
 
 const SOURCE_TEXT = { gps: 'from GPS', map: 'pinned on the map', address: 'from address search' };
 
@@ -221,12 +222,13 @@ export default function LocationPicker({ value, onChange, onAddress, error }) {
               {nearby.items.length === 1 ? 'A pothole was already reported' : `${nearby.items.length} potholes were already reported`}{' '}
               within {nearby.radius_m} m
             </strong>
-            <p>If it is the same pothole, the LGU is already tracking it. You can still submit if this is a different one.</p>
+            <p>If it is the same pothole, the LGU is already tracking it — tap <strong>I saw this too</strong> instead of sending a new report. You can still submit if this is a different one.</p>
             <ul>
               {nearby.items.slice(0, 4).map((n) => (
                 <li key={n.code}>
                   <span className="numeral">{n.code}</span>, {formatDistance(n.distance_m)} away on {n.road_name}
                   {n.landmark ? ` (${n.landmark})` : ''}, reported {timeAgo(n.created_at)} <StatusBadge status={n.status} />
+                  {n.id && <div className="locpick__confirm"><ConfirmButton report={n} /></div>}
                 </li>
               ))}
             </ul>

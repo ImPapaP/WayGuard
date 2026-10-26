@@ -33,8 +33,38 @@ async function parseError(res) {
   return err;
 }
 
+// Optional "focus on one LGU" chosen by administrators who manage several.
+const FOCUS_KEY = 'wg-focus-lgu';
+export function getFocusLgu() {
+  try {
+    return JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+export function setFocusLgu(lgu) {
+  try {
+    if (lgu) localStorage.setItem(FOCUS_KEY, JSON.stringify({ id: lgu.id, name: lgu.name }));
+    else localStorage.removeItem(FOCUS_KEY);
+  } catch {
+    /* not remembered */
+  }
+}
+// Adds the focus to file-download links (which cannot send headers).
+export function withFocus(url) {
+  const f = getFocusLgu();
+  if (!f) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}focus_lgu=${f.id}`;
+}
+
 export async function api(path, { method = 'GET', body, signal, headers = {} } = {}) {
-  const init = { method, signal, headers: { Accept: 'application/json', ...headers }, credentials: 'same-origin' };
+  const focus = getFocusLgu();
+  const init = {
+    method,
+    signal,
+    headers: { Accept: 'application/json', ...(focus ? { 'X-Wayguard-Focus': String(focus.id) } : {}), ...headers },
+    credentials: 'same-origin',
+  };
   if (method !== 'GET' && method !== 'HEAD') init.headers['X-Wayguard-CSRF'] = '1';
   if (body instanceof FormData) {
     init.body = body;
@@ -63,6 +93,7 @@ api.get = (path, opts) => api(path, { ...opts, method: 'GET' });
 api.post = (path, body, opts) => api(path, { ...opts, method: 'POST', body: body ?? {} });
 api.patch = (path, body, opts) => api(path, { ...opts, method: 'PATCH', body });
 api.put = (path, body, opts) => api(path, { ...opts, method: 'PUT', body });
+api.delete = (path, opts) => api(path, { ...opts, method: 'DELETE' });
 
 // Multipart upload with progress (fetch cannot report upload progress).
 export function upload(path, formData, { onProgress } = {}) {
@@ -75,6 +106,8 @@ export function upload(path, formData, { onProgress } = {}) {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', path);
     xhr.setRequestHeader('X-Wayguard-CSRF', '1');
+    const focus = getFocusLgu();
+    if (focus) xhr.setRequestHeader('X-Wayguard-Focus', String(focus.id));
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));

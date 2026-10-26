@@ -87,7 +87,7 @@ export async function findDuplicateCandidates(db, { lat, lng, roadName, barangay
   const rows = await db`
     SELECT * FROM (
       SELECT r.id, r.code, r.status, r.severity, r.road_name, r.barangay, r.landmark, r.created_at,
-             r.latitude, r.longitude,
+             r.latitude, r.longitude, r.reporter_id,
              wg_distance_m(${lat}, ${lng}, r.latitude, r.longitude) AS distance_m
       FROM reports r
       WHERE (${lguId}::int IS NULL OR r.lgu_id = ${lguId})
@@ -194,6 +194,8 @@ export function publicShape(r) {
     updated_at: r.updated_at,
     resolved_at: r.resolved_at,
     is_demo: r.is_demo,
+    confirmations: r.confirmations ?? 0,
+    ...(r.confirmed_by_me !== undefined ? { confirmed_by_me: r.confirmed_by_me } : {}),
   };
 }
 
@@ -290,6 +292,19 @@ export async function getReportDetail(db, id, user) {
   if (user.role === 'maintenance') {
     detail.is_active_for_my_team = await teamHasAssignment(db, r.id, user.team_id, { activeOnly: true });
   }
+  const [conf] = await db`
+    SELECT count(*)::int AS n, bool_or(user_id = ${user.id}) AS mine
+    FROM report_confirmations WHERE report_id = ${r.id}`;
+  detail.confirmations = conf.n;
+  detail.confirmed_by_me = Boolean(conf.mine);
+  if (isAdmin) {
+    const p = priorityParts();
+    const [prio] = await db`
+      SELECT ${priorityExpr()} AS score, ${p.severity} AS severity, ${p.hazards} AS hazards,
+             ${p.confirmations} AS confirmations, ${p.age} AS age, ${p.road} AS road
+      FROM reports r WHERE r.id = ${r.id}`;
+    detail.priority = prio;
+  }
   return detail;
 }
 
@@ -345,14 +360,45 @@ export function possibleDuplicatesExpr(radiusM, windowDays) {
   )`;
 }
 
+// ---------------------------------------------------------------------------
+// Priority score (0–100) for open reports; closed reports score 0.
+// Severity up to 40, hazards up to 25, residents confirming up to 15,
+// days open up to 15, busy road types up to 5. See docs/04-api.md.
+// ---------------------------------------------------------------------------
+export function confirmationsExpr() {
+  return sql`(SELECT count(*)::int FROM report_confirmations rc WHERE rc.report_id = r.id)`;
+}
+export function priorityParts() {
+  return {
+    severity: sql`(CASE r.severity WHEN 'high' THEN 40 WHEN 'medium' THEN 22 ELSE 8 END)`,
+    hazards: sql`LEAST(25,
+      (CASE WHEN 'near_school_or_crossing' = ANY(r.hazards) THEN 10 ELSE 0 END) +
+      (CASE WHEN 'motorcycle_risk' = ANY(r.hazards) THEN 6 ELSE 0 END) +
+      (CASE WHEN 'damaged_vehicles' = ANY(r.hazards) THEN 6 ELSE 0 END) +
+      (CASE WHEN 'deep' = ANY(r.hazards) THEN 4 ELSE 0 END) +
+      (CASE WHEN 'causes_swerving' = ANY(r.hazards) THEN 4 ELSE 0 END) +
+      (CASE WHEN 'water_filled' = ANY(r.hazards) THEN 3 ELSE 0 END) +
+      (CASE WHEN 'poor_lighting' = ANY(r.hazards) THEN 3 ELSE 0 END) +
+      (CASE WHEN 'wide' = ANY(r.hazards) THEN 2 ELSE 0 END))`,
+    confirmations: sql`LEAST(15, 5 * ${confirmationsExpr()})`,
+    age: sql`LEAST(15, floor(EXTRACT(EPOCH FROM (now() - r.created_at)) / 86400 / 2))::int`,
+    road: sql`(CASE r.road_type WHEN 'national' THEN 5 WHEN 'provincial' THEN 4 WHEN 'city_municipal' THEN 3 ELSE 1 END)`,
+  };
+}
+export function priorityExpr() {
+  const p = priorityParts();
+  return sql`(CASE WHEN r.status = ANY(${OPEN_STATUSES})
+    THEN LEAST(100, ${p.severity} + ${p.hazards} + ${p.confirmations} + ${p.age} + ${p.road})
+    ELSE 0 END)::int`;
+}
+
 export const SORTS = {
   newest: () => sql`r.created_at DESC, r.id DESC`,
   oldest: () => sql`r.created_at ASC, r.id ASC`,
   updated: () => sql`r.updated_at DESC, r.id DESC`,
   severity: () => sql`CASE r.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, r.created_at ASC`,
-  priority: () => sql`CASE r.status WHEN 'submitted' THEN 0 WHEN 'under_review' THEN 1 WHEN 'verified' THEN 2
-                         WHEN 'in_progress' THEN 3 WHEN 'assigned' THEN 4 ELSE 5 END,
-                    CASE r.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, r.created_at ASC`,
+  priority: () => sql`${priorityExpr()} DESC, r.created_at ASC, r.id ASC`,
+  confirmed: () => sql`${confirmationsExpr()} DESC, r.created_at DESC`,
 };
 
 export function forbidUnlessRole(user, ...roles) {

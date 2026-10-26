@@ -58,8 +58,12 @@ publicRoutes.get('/reports', async (ctx) => {
     .filter((x) => PUBLIC_STATUSES.includes(x));
   if (statuses.length) conds.push(sql`r.status = ANY(${statuses})`);
   const where = conds.reduce((acc, c) => sql`${acc} AND ${c}`, sql`TRUE`);
+  const mine = ctx.user?.role === 'citizen'
+    ? sql`, EXISTS (SELECT 1 FROM report_confirmations rc WHERE rc.report_id = r.id AND rc.user_id = ${ctx.user.id}) AS confirmed_by_me`
+    : sql``;
   const rows = await sql`
-    SELECT r.* FROM reports r WHERE ${where}
+    SELECT r.*, (SELECT count(*)::int FROM report_confirmations rc WHERE rc.report_id = r.id) AS confirmations ${mine}
+    FROM reports r WHERE ${where}
     ORDER BY r.created_at DESC
     LIMIT 2000`;
   ctx.json(200, { items: rows.map(publicShape) });

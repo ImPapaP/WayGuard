@@ -13,6 +13,7 @@ import './preview.css';
 import { useEffect } from 'react';
 import App from '../App.jsx';
 import { initReveal } from '../lib/reveal.js';
+import { initLang } from '../lib/i18n/index.js';
 import { useAuth, HOME_BY_ROLE } from '../lib/auth.jsx';
 import { useNavigate } from '../lib/router.jsx';
 import { useToast } from '../lib/toast.jsx';
@@ -149,3 +150,4 @@ function PreviewBar() {
 
 createRoot(document.getElementById('root')).render(<App banner={<PreviewBar />} />);
 initReveal();
+initLang();

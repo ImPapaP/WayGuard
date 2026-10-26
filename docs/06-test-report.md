@@ -205,3 +205,23 @@ normal machine (they need only `npm install` and internet):
   phone over HTTPS (see README).
 - Windows and macOS installs were not tried (Linux only).
 - No load/performance testing.
+
+## 6.6 Additions on 26 Oct 2026
+
+| Area | How it was checked | Result |
+| --- | --- | --- |
+| Password reset by e-mail | API test: same reply for any address, token stored hashed, one use only, expired link refused, all devices signed out | Pass |
+| "I saw this too" and priority score | API test: own report refused, admins cannot confirm, counted once, raises the score, priority sort highest first, reporter notified, undo works | Pass |
+| Focus on one LGU, LGU comparison, figures CSV, monthly PDF | API test: focus narrows stats, lists and downloads; an unrelated focus is ignored; comparison is platform-only | Pass |
+| Platform administrator powers | API test across two LGUs (reports, workflow, stats, users, teams, settings of any LGU, activity log, exports) | Pass |
+| Demo LGU linked to the official City of Malolos | Simulated a fresh Render start and an upgrade of an already-seeded database: one Malolos with all 116 demo reports | Pass |
+| PSGC directory on restart | Unchanged directory is skipped (0.3 s instead of a full reload); `--force` still reloads | Pass |
+| Offline reporting | Browser test: report saved with photo while offline, sent automatically on reconnect (new code issued) | Pass |
+| Filipino / English | Browser check of landing, sign-in, citizen home, report form and lists in Filipino and back | Pass; translations need a native speaker's review |
+| Heat map and barangay counts | Screenshots on the admin map (Leaflet fallback; vector map uses the same markers) | Pass |
+| Phone widths | 360 px and 390 px: no sideways scrolling on public, sign-in and citizen pages | Pass |
+
+Not verified here: e-mail delivery through a real SMTP service, UptimeRobot,
+spoken alerts on real phones (speech engines differ by phone), and real
+devices in general — see `docs/11-operations.md` §11.3 for the phone checklist.
+

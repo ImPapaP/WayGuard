@@ -1,11 +1,11 @@
 // Searchable, filterable reports table (FR-08). Filters live in the URL so a
 // filtered view can be bookmarked or opened from the dashboard.
 import { useEffect, useState } from 'react';
-import { LuSearch, LuCopy, LuDownload, LuImage, LuX } from 'react-icons/lu';
+import { LuSearch, LuCopy, LuDownload, LuImage, LuX, LuUsers } from 'react-icons/lu';
 import { useApi, useDebounced, useDocumentTitle } from '../../lib/hooks.js';
-import { qs } from '../../lib/api.js';
+import { qs, withFocus } from '../../lib/api.js';
 import { Link, useNavigate, useQueryState } from '../../lib/router.jsx';
-import { DemoTag, EmptyState, ErrorState, Loading, Pagination, SeverityBadge, StatusBadge } from '../../components/ui.jsx';
+import { DemoTag, EmptyState, ErrorState, Loading, Pagination, PriorityBadge, SeverityBadge, StatusBadge } from '../../components/ui.jsx';
 import { ALL_STATUSES, STATUS, formatDate, isAwaitingVerification, timeAgo } from '../../lib/format.js';
 
 const FILTER_KEYS = ['q', 'status', 'severity', 'barangay', 'team_id', 'agency_id', 'from', 'to', 'has_duplicates', 'awaiting_completion'];
@@ -46,10 +46,10 @@ export default function AdminReports() {
           <p>{data ? `${data.total} report${data.total === 1 ? '' : 's'}${activeFilters ? ' match these filters' : ''}` : ' '}</p>
         </div>
         <div className="page-head__actions">
-          <a className="btn btn--secondary btn--sm" href={`/api/admin/exports/reports.csv${qs(exportQuery(query))}`} download>
+          <a className="btn btn--secondary btn--sm" href={withFocus(`/api/admin/exports/reports.csv${qs(exportQuery(query))}`)} download>
             <LuDownload aria-hidden /> CSV
           </a>
-          <a className="btn btn--secondary btn--sm" href={`/api/admin/exports/reports.pdf${qs(exportQuery(query))}`} download>
+          <a className="btn btn--secondary btn--sm" href={withFocus(`/api/admin/exports/reports.pdf${qs(exportQuery(query))}`)} download>
             <LuDownload aria-hidden /> PDF
           </a>
         </div>
@@ -91,7 +91,8 @@ export default function AdminReports() {
             ))}
           </select>
           <select className="select select--sm" aria-label="Sort by" value={query.sort || 'priority'} onChange={(e) => setQuery({ sort: e.target.value })}>
-            <option value="priority">Sort: needs action first</option>
+            <option value="priority">Sort: highest priority</option>
+            <option value="confirmed">Sort: most confirmed by residents</option>
             <option value="newest">Sort: newest</option>
             <option value="oldest">Sort: oldest</option>
             <option value="severity">Sort: most severe</option>
@@ -163,6 +164,7 @@ export default function AdminReports() {
                 <thead>
                   <tr>
                     <th scope="col">Report</th>
+                    <th scope="col" title="Priority score, 0–100">Priority</th>
                     <th scope="col">Status</th>
                     <th scope="col">Severity</th>
                     <th scope="col">Location</th>
@@ -185,6 +187,9 @@ export default function AdminReports() {
                         </Link>{' '}
                         {r.is_demo && <DemoTag />}
                       </td>
+                      <td data-label="Priority">
+                        <PriorityBadge score={r.priority} />
+                      </td>
                       <td>
                         <StatusBadge status={r.status} awaiting={isAwaitingVerification(r)} />
                       </td>
@@ -205,6 +210,11 @@ export default function AdminReports() {
                         {r.possible_duplicates > 0 && !['rejected', 'duplicate', 'resolved'].includes(r.status) && (
                           <span className="dup-flag" title={`${r.possible_duplicates} other open report(s) nearby`}>
                             <LuCopy aria-hidden size={12} /> {r.possible_duplicates} nearby
+                          </span>
+                        )}{' '}
+                        {r.confirmations > 0 && (
+                          <span className="confirm-flag" title={`${r.confirmations} resident(s) saw it too`}>
+                            <LuUsers aria-hidden size={12} /> +{r.confirmations}
                           </span>
                         )}{' '}
                         <span className="muted small" title={`${r.photo_count} photo(s)`}>

@@ -7,6 +7,7 @@ import { useDocumentTitle } from '../../lib/hooks.js';
 import { Button, TextField, Alert, Facts } from '../../components/ui.jsx';
 import { ROLES, formatDate } from '../../lib/format.js';
 import ChangePasswordForm from './ChangePasswordForm.jsx';
+import LangSwitch from '../../components/LangSwitch.jsx';
 
 export default function Profile() {
   useDocumentTitle('Profile');
@@ -48,6 +49,10 @@ export default function Profile() {
         <div>
           <h1>Profile</h1>
           <p>Manage your details and password.</p>
+        </div>
+        <div className="profile-lang">
+          <span className="small muted">Language / Wika</span>
+          <LangSwitch />
         </div>
       </div>
       <div className="stack stack--lg">

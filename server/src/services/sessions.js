@@ -103,6 +103,22 @@ export function loadSession() {
         } else {
           user.accessible_lgu_ids = user.lgu_id == null ? [] : [user.lgu_id];
         }
+        // Optional focus on one LGU (and the areas under it) for people who
+        // manage several: X-Wayguard-Focus header, or ?focus_lgu= on file
+        // downloads. It can only narrow what the account may already see.
+        const focusRaw = ctx.req.headers['x-wayguard-focus'] || ctx.query?.focus_lgu;
+        const focus = Number(focusRaw);
+        if (focusRaw && Number.isInteger(focus) && focus > 0 && ['admin', 'staff', 'platform_admin'].includes(user.role)
+            && user.accessible_lgu_ids.includes(focus)) {
+          const below = await sql`
+            WITH RECURSIVE tree(id) AS (
+              SELECT ${focus}::int UNION SELECT l.id FROM lgus l JOIN tree t ON l.parent_lgu_id = t.id
+            ) SELECT id FROM tree`;
+          const allowed = new Set(user.accessible_lgu_ids);
+          user.accessible_lgu_ids = below.map((r) => r.id).filter((id) => allowed.has(id));
+          const [f] = await sql`SELECT id, name, province, jurisdiction_level FROM lgus WHERE id = ${focus}`;
+          user.focus_lgu = f || null;
+        }
         ctx.user = user;
         ctx.session = { id: session_id };
         // Sliding expiry, written at most every 10 minutes.
@@ -140,5 +156,6 @@ export function publicUser(user) {
     email_notifications: user.email_notifications,
     must_change_password: user.must_change_password,
     created_at: user.created_at,
+    focus_lgu: user.focus_lgu || null,
   };
 }

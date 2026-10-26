@@ -284,17 +284,22 @@ export default function VectorMap({
     for (const r of markers) {
       if (!Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) continue;
       const { className: cls, html } = pinMarkup({
+        kind: r.kind,
+        count: r.count,
+        label: r.label,
         severity: r.severity,
         status: r.status,
         awaiting: r.status === 'in_progress' && Boolean(r.work_completed_at),
         selected: r.id === selectedId,
       });
       const node = el(cls, html);
-      const clickable = Boolean(handlers.current.onMarkerClick);
-      const title = clickable
-        ? `${r.code}: ${SEVERITY[r.severity]?.label} severity, ${STATUS[r.status]?.label}`
-        : `${r.code}, ${r.road_name || ''}`;
-      node.title = title;
+      const clickable = Boolean(handlers.current.onMarkerClick) && r.kind !== 'heat';
+      const title = r.kind === 'area'
+        ? `${r.label}: ${r.count} open report${r.count === 1 ? '' : 's'}`
+        : clickable
+          ? `${r.code}: ${SEVERITY[r.severity]?.label} severity, ${STATUS[r.status]?.label}`
+          : `${r.code}, ${r.road_name || ''}`;
+      if (r.kind !== 'heat') node.title = title;
       if (clickable) {
         node.setAttribute('role', 'button');
         node.setAttribute('tabindex', '0');
@@ -312,7 +317,7 @@ export default function VectorMap({
           }
         });
       }
-      const marker = new maplibregl.Marker({ element: node, anchor: 'bottom', offset: [0, 2] })
+      const marker = new maplibregl.Marker({ element: node, anchor: r.kind ? 'center' : 'bottom', offset: r.kind ? [0, 0] : [0, 2] })
         .setLngLat([r.longitude, r.latitude])
         .addTo(m);
       if (r.id === selectedId) node.style.zIndex = '3';

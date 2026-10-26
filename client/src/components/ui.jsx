@@ -131,7 +131,32 @@ export function PasswordRules({ value, confirm }) {
   );
 }
 
-export function SelectField({ label, hint, error, optional, options, placeholder, className, ...select }) {
+// Long lists (e.g. the 1,600+ cities and municipalities) become a
+// type-to-search box; short ones stay a normal <select>.
+const SEARCH_THRESHOLD = 25;
+
+export function SelectField({ label, hint, error, optional, options, placeholder, className, searchable, ...select }) {
+  const real = options.filter((o) => o.value !== '' && o.value != null);
+  if (searchable ?? real.length > SEARCH_THRESHOLD) {
+    const emptyLabel = placeholder ?? options.find((o) => o.value === '')?.label;
+    return (
+      <Field label={label} hint={hint} error={error} optional={optional} className={className}>
+        {({ id, describedBy, invalid }) => (
+          <SearchSelect
+            id={id}
+            describedBy={describedBy}
+            invalid={invalid}
+            options={real}
+            value={select.value}
+            onChange={select.onChange}
+            disabled={select.disabled}
+            placeholder={emptyLabel ? `Search — ${String(emptyLabel).replace(/…$/, '')}` : 'Type to search'}
+            label={label}
+          />
+        )}
+      </Field>
+    );
+  }
   return (
     <Field label={label} hint={hint} error={error} optional={optional} className={className}>
       {({ id, describedBy, invalid }) => (
@@ -145,6 +170,97 @@ export function SelectField({ label, hint, error, optional, options, placeholder
         </select>
       )}
     </Field>
+  );
+}
+
+// Accessible combobox. onChange receives { target: { value } } like a <select>.
+export function SearchSelect({ id, describedBy, invalid, options, value, onChange, placeholder, disabled, label }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const listId = useId();
+  const inputRef = useRef(null);
+  const selected = options.find((o) => String(o.value) === String(value ?? ''));
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const results = (words.length
+    ? options.filter((o) => words.every((w) => String(o.label).toLowerCase().includes(w)))
+    : options
+  ).slice(0, 40);
+  const fire = (v) => onChange?.({ target: { value: v } });
+  const choose = (o) => {
+    fire(String(o.value));
+    setQ('');
+    setOpen(false);
+  };
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActive((i) => Math.min(results.length - 1, i + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
+    else if (e.key === 'Enter' && open && results[active]) { e.preventDefault(); choose(results[active]); }
+    else if (e.key === 'Escape') setOpen(false);
+  };
+  if (selected && !open) {
+    return (
+      <div className="search-select__chosen">
+        <span id={id} tabIndex={-1} aria-describedby={describedBy}>{selected.label}</span>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          disabled={disabled}
+          aria-label={`Change ${String(label || 'selection').toLowerCase()}`}
+          onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }}
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="search-select">
+      <div className="search-input">
+        <LuSearch aria-hidden />
+        <input
+          ref={inputRef}
+          id={id}
+          className="input"
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && results[active] ? `${listId}-${active}` : undefined}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          autoComplete="off"
+          disabled={disabled}
+          placeholder={placeholder}
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={onKey}
+        />
+      </div>
+      {open && (
+        <ul className="search-select__list" id={listId} role="listbox" aria-label={label ? `${label} choices` : 'Choices'}>
+          {results.length ? results.map((o, i) => (
+            <li
+              key={o.value}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              className={i === active ? 'is-active' : ''}
+              onMouseDown={(e) => { e.preventDefault(); choose(o); }}
+              onMouseEnter={() => setActive(i)}
+            >
+              {o.label}
+            </li>
+          )) : <li className="search-select__empty" role="presentation">No match</li>}
+          {!words.length && options.length > results.length && (
+            <li className="search-select__empty" role="presentation">Type to search all {options.length.toLocaleString()} choices</li>
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -187,6 +303,24 @@ export function SeverityBadge({ severity, showLabel = true }) {
         <i />
       </span>
       {showLabel ? SEVERITY[severity]?.label : <span className="visually-hidden">{SEVERITY[severity]?.label}</span>}
+    </span>
+  );
+}
+
+// Priority score 0–100 with a word, so it never relies on colour alone.
+export function priorityBand(score) {
+  if (!score) return { key: 'none', label: 'Closed' };
+  if (score >= 70) return { key: 'urgent', label: 'Urgent' };
+  if (score >= 45) return { key: 'high', label: 'High' };
+  if (score >= 25) return { key: 'normal', label: 'Normal' };
+  return { key: 'low', label: 'Low' };
+}
+export function PriorityBadge({ score }) {
+  const band = priorityBand(score);
+  if (band.key === 'none') return <span className="muted small">—</span>;
+  return (
+    <span className={`prio prio--${band.key}`} title={`Priority ${score} of 100`}>
+      <strong className="numeral">{score}</strong> {band.label}
     </span>
   );
 }

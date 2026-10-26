@@ -17,7 +17,7 @@ import {
   LuActivity,
 } from 'react-icons/lu';
 import { useApi, useDocumentTitle } from '../../lib/hooks.js';
-import { qs } from '../../lib/api.js';
+import { qs, withFocus } from '../../lib/api.js';
 import { Link } from '../../lib/router.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { Alert, ErrorState, Loading, StatusBadge, SeverityBadge } from '../../components/ui.jsx';
@@ -113,13 +113,21 @@ export default function Dashboard() {
     <div className="container page dash">
       <div className="page-head dash__head">
         <div>
-          <p className="eyebrow">{isPlatform ? 'Platform administrator · every LGU' : user?.role === 'staff' ? 'LGU staff' : 'LGU administrator'}</p>
+          <p className="eyebrow">{isPlatform ? (user?.focus_lgu ? 'Platform administrator · one LGU' : 'Platform administrator · every LGU') : user?.role === 'staff' ? 'LGU staff' : 'LGU administrator'}</p>
           <h1>Dashboard</h1>
-          <p className="muted">{isPlatform ? 'All local government units on Wayguard' : user?.lgu_name || config?.lgu_name}</p>
+          <p className="muted">
+            {user?.focus_lgu ? `${user.focus_lgu.name} and the areas under it` : isPlatform ? 'All local government units on Wayguard' : user?.lgu_name || config?.lgu_name}
+          </p>
         </div>
-        <a className="btn btn--secondary btn--sm" href={`/api/admin/exports/summary.pdf${qs(range)}`} download>
+        <div className="cluster">
+        <a className="btn btn--secondary btn--sm" href={withFocus(`/api/admin/exports/summary.pdf${qs(range)}`)} download>
           <LuDownload aria-hidden /> Summary PDF
         </a>
+        <a className="btn btn--secondary btn--sm" href={withFocus(`/api/admin/exports/stats.csv${qs(range)}`)} download>
+          <LuDownload aria-hidden /> Figures CSV
+        </a>
+        <Link className="btn btn--secondary btn--sm" to="/admin/exports#month-title">Monthly report</Link>
+        </div>
       </div>
 
       <div className="dash-filters" role="group" aria-label="Reporting period">

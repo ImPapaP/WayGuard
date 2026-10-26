@@ -170,19 +170,28 @@ export default function GoogleMap({
     for (const r of markers) {
       if (!Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) continue;
       const { className: cls, html } = pinMarkup({
+        kind: r.kind,
+        count: r.count,
+        label: r.label,
         severity: r.severity,
         status: r.status,
         awaiting: r.status === 'in_progress' && Boolean(r.work_completed_at),
         selected: r.id === selectedId,
       });
-      const clickable = Boolean(handlers.current.onMarkerClick);
+      const clickable = Boolean(handlers.current.onMarkerClick) && r.kind !== 'heat';
+      // Advanced markers sit on their bottom edge; centre the round kinds.
+      const content = el(r.kind ? `${cls} wg-centred` : cls, html);
       const marker = new maps.marker.AdvancedMarkerElement({
         map: m,
         position: { lat: r.latitude, lng: r.longitude },
-        content: el(cls, html),
-        title: clickable
-          ? `${r.code}: ${SEVERITY[r.severity]?.label} severity, ${STATUS[r.status]?.label}`
-          : `${r.code}, ${r.road_name || ''}`,
+        content,
+        title: r.kind === 'area'
+          ? `${r.label}: ${r.count} open reports`
+          : r.kind === 'heat'
+            ? ''
+            : clickable
+              ? `${r.code}: ${SEVERITY[r.severity]?.label} severity, ${STATUS[r.status]?.label}`
+              : `${r.code}, ${r.road_name || ''}`,
         zIndex: r.id === selectedId ? 1000 : undefined,
         gmpClickable: clickable,
       });

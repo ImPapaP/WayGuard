@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { Router, readJson, notFound, conflict, badRequest } from '../lib/http.js';
 import { sql } from '../db/index.js';
+import { config } from '../config.js';
 import { requireRole } from '../middleware/auth.js';
 import { text, email, password, phone, parseId } from '../lib/validation.js';
 import { hashPassword } from '../lib/security.js';
@@ -397,4 +398,45 @@ platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
   }
   await audit(sql, { actorId: ctx.user.id, action: 'lgu.update', targetType: 'lgu', targetId: id, details: { ...(body.is_active !== undefined ? { is_active: body.is_active } : {}), ...(body.jurisdiction_boundary !== undefined ? { jurisdiction_boundary_updated: true } : {}), ...(body.jurisdiction_level !== undefined ? { jurisdiction_level: body.jurisdiction_level } : {}), ...(body.parent_lgu_id !== undefined ? { parent_lgu_id: body.parent_lgu_id } : {}) }, ip: ctx.ip });
   ctx.json(200, { lgu });
+});
+
+// ---------------------------------------------------------------------------
+// Compare LGUs: how quickly and how completely each LGU handles its reports.
+// Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD limits to reports made in that period.
+// ---------------------------------------------------------------------------
+platformRoutes.get('/compare', platformAdmin, async (ctx) => {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(ctx.query.from || '') ? ctx.query.from : null;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(ctx.query.to || '') ? ctx.query.to : null;
+  const rows = await sql`
+    WITH r AS (
+      SELECT * FROM reports
+      WHERE (${from}::date IS NULL OR created_at >= ${from}::date)
+        AND (${to}::date IS NULL OR created_at < ${to}::date + 1)
+    ),
+    first_action AS (
+      SELECT e.report_id, min(e.created_at) AS at FROM report_events e
+      WHERE e.event_type = 'status_changed' GROUP BY e.report_id
+    )
+    SELECT l.id, l.name, l.province, l.jurisdiction_level,
+      count(r.id)::int AS total,
+      count(r.id) FILTER (WHERE r.status IN ('submitted', 'under_review', 'verified', 'assigned', 'in_progress'))::int AS open,
+      count(r.id) FILTER (WHERE r.status = 'resolved')::int AS resolved,
+      count(r.id) FILTER (WHERE r.status IN ('rejected', 'duplicate'))::int AS closed_invalid,
+      round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (r.resolved_at - r.created_at)) / 86400)
+             FILTER (WHERE r.status = 'resolved'))::numeric, 1)::float AS median_repair_days,
+      round((avg(EXTRACT(EPOCH FROM (fa.at - r.created_at)) / 3600) FILTER (WHERE fa.at IS NOT NULL))::numeric, 1)::float AS avg_first_response_hours,
+      (SELECT count(*)::int FROM assignments a JOIN reports rr ON rr.id = a.report_id
+        WHERE rr.lgu_id = l.id AND a.is_active AND a.due_date < (now() AT TIME ZONE ${config.timezone})::date) AS overdue,
+      (SELECT round(avg(f.rating)::numeric, 2)::float FROM feedback f JOIN reports rr ON rr.id = f.report_id WHERE rr.lgu_id = l.id) AS rating,
+      (SELECT count(*)::int FROM users u WHERE u.lgu_id = l.id AND u.role IN ('admin', 'staff', 'maintenance') AND u.is_active) AS personnel
+    FROM lgus l
+    JOIN r ON r.lgu_id = l.id
+    LEFT JOIN first_action fa ON fa.report_id = r.id
+    GROUP BY l.id, l.name, l.province, l.jurisdiction_level
+    ORDER BY total DESC, l.name`;
+  const items = rows.map((x) => {
+    const valid = x.total - x.closed_invalid;
+    return { ...x, resolution_rate: valid > 0 ? Math.round((x.resolved / valid) * 100) : null };
+  });
+  ctx.json(200, { range: { from, to }, items });
 });

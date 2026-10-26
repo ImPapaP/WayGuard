@@ -94,6 +94,7 @@ export class Client {
   post(url, json, opts = {}) { return this.request('POST', url, { ...opts, json }); }
   patch(url, json, opts = {}) { return this.request('PATCH', url, { ...opts, json }); }
   put(url, json, opts = {}) { return this.request('PUT', url, { ...opts, json }); }
+  delete(url, opts = {}) { return this.request('DELETE', url, opts); }
   postForm(url, form, opts = {}) { return this.request('POST', url, { ...opts, form }); }
 }
 

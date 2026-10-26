@@ -228,6 +228,46 @@ async function removeDemoData(sql) {
   console.log(`Removed previous demo data (${photos.length} photos).`);
 }
 
+// The demo data lives in LGU #1. When the official PSGC directory is loaded,
+// the official "City of Malolos" entry is merged into it, so there is one
+// Malolos (with the demo reports) instead of two.
+const MALOLOS_PSGC = '0301410000';
+async function linkDemoLguToOfficialMalolos(db, log = console.log) {
+  return db.begin(async (tx) => {
+    const [demoLgu] = await tx`SELECT id, psgc_code FROM lgus WHERE id = 1 FOR UPDATE`;
+    if (!demoLgu || demoLgu.psgc_code) return false;
+    const [official] = await tx`
+      SELECT id, name, slug, city, province, jurisdiction_level, parent_lgu_id, psgc_release
+      FROM lgus WHERE psgc_code = ${MALOLOS_PSGC} FOR UPDATE`;
+    if (!official) return false;
+    // Only merge an official entry nobody uses yet.
+    const refs = await tx`
+      SELECT c.conrelid::regclass::text AS tbl, a.attname AS col
+      FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      WHERE c.contype = 'f' AND c.confrelid = 'lgus'::regclass AND array_length(c.conkey, 1) = 1`;
+    for (const { tbl, col } of refs) {
+      if (tbl === 'settings' || tbl === 'audit_logs') continue;
+      const [{ n }] = await tx.unsafe(`SELECT count(*)::int AS n FROM ${tbl} WHERE ${col} = $1`, [official.id]);
+      if (n > 0) {
+        log(`Demo LGU not merged with the official City of Malolos: it is already used by ${tbl}.`);
+        return false;
+      }
+    }
+    await tx`DELETE FROM settings WHERE lgu_id = ${official.id}`;
+    await tx`UPDATE audit_logs SET lgu_id = 1 WHERE lgu_id = ${official.id}`;
+    await tx`DELETE FROM lgus WHERE id = ${official.id}`;
+    await tx`
+      UPDATE lgus SET name = ${official.name}, slug = ${official.slug}, city = ${official.city}, province = ${official.province},
+        jurisdiction_level = ${official.jurisdiction_level}, parent_lgu_id = ${official.parent_lgu_id},
+        psgc_code = ${MALOLOS_PSGC}, psgc_release = ${official.psgc_release}, is_directory_node = TRUE, updated_at = now()
+      WHERE id = 1`;
+    await tx`UPDATE settings SET value = ${tx.json(official.name)} WHERE lgu_id = 1 AND key = 'lgu_name' AND value::text LIKE '%Demo LGU%'`;
+    log('Demo data now belongs to the official City of Malolos (PSGC ' + MALOLOS_PSGC + ').');
+    return true;
+  });
+}
+
 const AUTO = process.argv.includes('--auto');
 const DEMO_SWITCH = (process.env.DEMO_DATA || '').trim().toLowerCase();
 
@@ -252,6 +292,7 @@ async function main() {
   }
   const fresh = process.argv.includes('--fresh');
   if (existing && !fresh) {
+    await linkDemoLguToOfficialMalolos(sql);
     console.log('Demo data is already loaded. Use `npm run db:seed -- --fresh` to recreate it.');
     return;
   }
@@ -312,7 +353,7 @@ async function main() {
         },
       };
       // Update the default tenant's display name while keeping tenant ownership.
-      await tx`UPDATE lgus SET name = 'City of Malolos (Demo LGU)', city = 'Malolos', province = 'Bulacan', updated_at = now() WHERE id = 1`;
+      await tx`UPDATE lgus SET name = 'City of Malolos (Demo LGU)', city = 'Malolos', province = 'Bulacan', updated_at = now() WHERE id = 1 AND NOT is_directory_node`;
       // Settings an administrator already saved are kept.
       for (const [key, value] of Object.entries(settings)) {
         await tx`
@@ -466,6 +507,7 @@ async function main() {
     throw err;
   }
 
+  await linkDemoLguToOfficialMalolos(sql);
   console.log('\nDemo data loaded (all records are labelled as demo):');
   console.log(`  ${REPORTS.length} reports, ${AGENCIES.length} agencies, ${TEAMS.length} maintenance teams, ${storedKeys.length} demo photos`);
   console.log('\nDemo accounts (password = SEED_DEMO_PASSWORD):');

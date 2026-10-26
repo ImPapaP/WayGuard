@@ -69,7 +69,7 @@ function buildAssignments(nodes, existingRows) {
   return nodeIds;
 }
 
-export async function syncPsgcDirectory({ db = getSql(), log = console.log } = {}) {
+export async function syncPsgcDirectory({ db = getSql(), log = console.log, force = false } = {}) {
   const file = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
   const nodes = file.nodes || [];
   const release = file.metadata?.sourceSnapshot || 'unknown';
@@ -78,6 +78,18 @@ export async function syncPsgcDirectory({ db = getSql(), log = console.log } = {
   const knownCodes = new Set(nodes.map((node) => node.code));
   const missingParent = nodes.find((node) => node.parent_code && !knownCodes.has(node.parent_code));
   if (missingParent) throw new Error('Missing PSGC parent record for ' + missingParent.name + '.');
+
+  // Fast path for restarts: the same release is already fully loaded.
+  if (!force) {
+    const [loaded] = await db.unsafe(
+      'SELECT count(*)::int AS n FROM lgus WHERE is_directory_node AND psgc_release = $1 AND psgc_code = ANY($2::text[])',
+      [release, nodes.map((node) => node.code)]
+    );
+    if (loaded.n === nodes.length) {
+      log('PSGC directory already up to date (' + loaded.n + ' nodes, ' + release + ').');
+      return { skipped: true, total: loaded.n, matched: loaded.n, inserted: 0, source: file.metadata };
+    }
+  }
 
   return db.begin(async (tx) => {
     const existingRows = await tx.unsafe(
@@ -148,7 +160,7 @@ export async function syncPsgcDirectory({ db = getSql(), log = console.log } = {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  syncPsgcDirectory()
+  syncPsgcDirectory({ force: process.argv.includes('--force') })
     .then(() => closeSql())
     .catch(async (err) => {
       console.error('PSGC directory sync failed:', err.message);

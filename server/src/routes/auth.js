@@ -12,11 +12,23 @@ import {
   userColumns,
 } from '../services/sessions.js';
 import { requireAuth } from '../middleware/auth.js';
+import { audit } from '../services/audit.js';
+import {
+  createPasswordReset,
+  sendResetEmail,
+  findValidReset,
+  completePasswordReset,
+  resetEmailAvailable,
+  RESET_TTL_MINUTES,
+} from '../services/passwordReset.js';
 
 const loginLimiterIp = new RateLimiter({ windowMs: 15 * 60 * 1000, max: 30, name: 'sign-in attempts' });
 const loginLimiterAccount = new RateLimiter({ windowMs: 15 * 60 * 1000, max: 8, name: 'sign-in attempts' });
 const registerLimiter = new RateLimiter({ windowMs: 60 * 60 * 1000, max: 10, name: 'registrations' });
 const passwordLimiter = new RateLimiter({ windowMs: 15 * 60 * 1000, max: 10, name: 'password attempts' });
+const forgotLimiterIp = new RateLimiter({ windowMs: 60 * 60 * 1000, max: 10, name: 'password reset requests' });
+const forgotLimiterAccount = new RateLimiter({ windowMs: 60 * 60 * 1000, max: 3, name: 'password reset requests' });
+const resetLimiter = new RateLimiter({ windowMs: 15 * 60 * 1000, max: 20, name: 'password reset attempts' });
 
 const registerSchema = z.object({
   full_name: text(2, 100, 'Full name'),
@@ -145,3 +157,44 @@ authRoutes.post('/change-password', requireAuth(), async (ctx) => {
   await destroyUserSessions(ctx.user.id, ctx.session.id);
   ctx.json(200, { user: publicUser(await loadUser(ctx.user.id)) });
 });
+
+// ---------------------------------------------------------------------------
+// Forgotten password: e-mail a one-time link. The answer is the same whether
+// or not the address has an account, so it cannot be used to find accounts.
+// ---------------------------------------------------------------------------
+authRoutes.post('/forgot-password', async (ctx) => {
+  forgotLimiterIp.consume(`ip:${ctx.ip}`, ctx);
+  const body = await readJson(ctx, z.object({ email: z.string().trim().toLowerCase().max(254) }));
+  forgotLimiterAccount.consume(`email:${body.email}`, ctx);
+  const emailEnabled = resetEmailAvailable();
+  const [user] = await sql`SELECT id, email, full_name FROM users WHERE lower(email) = ${body.email} AND is_active`;
+  if (user) {
+    const token = await createPasswordReset(user.id, ctx.ip);
+    // Not awaited, so the reply takes about as long with or without an account.
+    sendResetEmail(user, token).catch((err) => console.warn(`[password reset] e-mail to user ${user.id} failed: ${err.message}`));
+    await audit(sql, { actorId: user.id, action: 'auth.password_reset_requested', targetType: 'user', targetId: user.id, ip: ctx.ip });
+  }
+  ctx.json(200, {
+    ok: true,
+    email_enabled: emailEnabled,
+    minutes: RESET_TTL_MINUTES,
+  });
+});
+
+authRoutes.get('/reset-password', async (ctx) => {
+  resetLimiter.consume(`ip:${ctx.ip}`, ctx);
+  const reset = await findValidReset(String(ctx.query.token || ''));
+  ctx.json(200, { valid: Boolean(reset) });
+});
+
+authRoutes.post('/reset-password', async (ctx) => {
+  resetLimiter.consume(`ip:${ctx.ip}`, ctx);
+  const body = await readJson(ctx, z.object({ token: z.string().min(20).max(128), new_password: password }));
+  const userId = await completePasswordReset(body.token, body.new_password);
+  if (!userId) {
+    throw new HttpError(400, 'This reset link has expired or was already used. Ask for a new one.', undefined, 'invalid_reset_token');
+  }
+  await audit(sql, { actorId: userId, action: 'auth.password_reset_completed', targetType: 'user', targetId: userId, ip: ctx.ip });
+  ctx.json(200, { ok: true });
+});
+

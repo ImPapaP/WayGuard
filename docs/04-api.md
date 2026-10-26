@@ -139,3 +139,30 @@ created between `from` and `to`.
 | `top_barangays` | open reports per barangay, top 8 |
 | `teams` | per active team: active assignments, assignments completed |
 | `feedback` | number of ratings and average rating |
+
+## Added 26 Oct 2026
+
+| Method and path | Who | What |
+| --- | --- | --- |
+| `POST /api/auth/forgot-password` `{email}` | anyone | E-mails a one-time reset link (60 min). Same reply whether or not the address has an account; rate-limited per IP and per address. |
+| `GET /api/auth/reset-password?token=` | anyone | `{ valid }` for a reset link. |
+| `POST /api/auth/reset-password` `{token, new_password}` | anyone | Sets the password, uses up the link, signs out every device. |
+| `POST /api/reports/:id/confirm` | citizen | "I saw this too" on someone else's open report. Returns `{ confirmations, confirmed_by_me }`; notifies the reporter. |
+| `DELETE /api/reports/:id/confirm` | citizen | Undo the confirmation. |
+| `GET /api/platform/compare?from=&to=` | platform admin | Per-LGU totals, open, resolution rate, median repair days, first response hours, overdue repairs, rating. |
+| `GET /api/admin/exports/stats.csv?from=&to=` | admin, staff | Every dashboard figure as one CSV. |
+| `GET /api/admin/exports/monthly.pdf?month=YYYY-MM` | admin, staff | Monthly accomplishment report (A4). |
+
+**Focus on one LGU.** Any admin/staff/platform-admin request may send the header
+`X-Wayguard-Focus: <lgu id>` (or `?focus_lgu=` on downloads). Every scoped
+query then covers that LGU and the areas under it only, intersected with what
+the account may already see; `/api/auth/me` returns `focus_lgu`.
+
+**Priority score** (`priority` in `/api/admin/reports`, `report.priority` in
+the admin report detail, `sort=priority`): 0 for closed reports; otherwise
+severity (high 40, medium 22, low 8) + hazards (up to 25: near school or crossing 10,
+motorcycle risk 6, damaged vehicles 6, deep 4, swerving 4, water 3, poor lighting 3, wide 2)
++ residents confirming (5 each, up to 15) + days open (1 per 2 days, up to 15)
++ road type (national 5, provincial 4, city/municipal 3, other 1), capped at 100.
+Bands: 70+ urgent, 45–69 high, 25–44 normal, below 25 low.
+

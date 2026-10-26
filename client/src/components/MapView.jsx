@@ -17,7 +17,7 @@ import { SEVERITY, STATUS } from '../lib/format.js';
 import { useMapFailed } from '../lib/mapStatus.js';
 import { useMapTheme } from '../lib/mapTheme.js';
 import GoogleMap from './GoogleMap.jsx';
-import { BUBBLE_ANCHOR, BUBBLE_SIZE, ME_HTML, PICK_HTML, pinMarkup } from './mapPins.js';
+import { BUBBLE_ANCHOR, BUBBLE_SIZE, KIND_SIZE, ME_HTML, PICK_HTML, pinMarkup } from './mapPins.js';
 
 // MapLibre is large, so it is downloaded only when a map is shown. The
 // self-contained preview build never includes it.
@@ -29,6 +29,10 @@ function escapeHtml(s) {
 
 export function pinIcon(opts) {
   const { className, html } = pinMarkup(opts);
+  if (opts.kind) {
+    const size = KIND_SIZE[opts.kind] || [48, 48];
+    return L.divIcon({ className, html, iconSize: size, iconAnchor: [size[0] / 2, size[1] / 2] });
+  }
   return L.divIcon({ className, html, iconSize: BUBBLE_SIZE, iconAnchor: BUBBLE_ANCHOR });
 }
 
@@ -293,21 +297,27 @@ function LeafletMap({
     const bounds = [];
     for (const r of markers) {
       if (!Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) continue;
+      const isHeat = r.kind === 'heat';
       const marker = L.marker([r.latitude, r.longitude], {
         icon: pinIcon({
+          kind: r.kind,
+          count: r.count,
+          label: r.label,
           severity: r.severity,
           status: r.status,
           awaiting: r.status === 'in_progress' && Boolean(r.work_completed_at),
           selected: r.id === selectedId,
         }),
-        title: `${r.code}: ${SEVERITY[r.severity]?.label} severity, ${STATUS[r.status]?.label}`,
-        alt: `${r.code}`,
-        riseOnHover: true,
+        title: r.kind === 'area' ? `${r.label}: ${r.count} open reports` : isHeat ? '' : `${r.code}: ${SEVERITY[r.severity]?.label} severity, ${STATUS[r.status]?.label}`,
+        alt: r.kind === 'area' ? r.label : `${r.code || ''}`,
+        riseOnHover: !isHeat,
         zIndexOffset: r.id === selectedId ? 1000 : 0,
-        keyboard: Boolean(handlers.current.onMarkerClick),
-        interactive: Boolean(handlers.current.onMarkerClick),
+        keyboard: Boolean(handlers.current.onMarkerClick) && !isHeat,
+        interactive: Boolean(handlers.current.onMarkerClick) && !isHeat,
       });
-      if (handlers.current.onMarkerClick) {
+      if (isHeat) {
+        // decoration only
+      } else if (handlers.current.onMarkerClick) {
         marker.on('click', () => handlers.current.onMarkerClick?.(r));
         marker.on('keypress', (e) => {
           if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') handlers.current.onMarkerClick?.(r);

@@ -16,7 +16,25 @@ const WAIT_ICON =
 const BUBBLE =
   '<svg class="wg-bubble__shape" viewBox="0 0 44 52" aria-hidden="true"><path d="M16 2h12c7.7 0 14 6.3 14 14v8c0 7.7-6.3 14-14 14h-1.8L22 49.5 17.8 38H16C8.3 38 2 31.7 2 24v-8C2 8.3 8.3 2 16 2z"/></svg>';
 
-export function pinMarkup({ severity, status, selected = false, awaiting = false }) {
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+// Extra marker kinds, centred on their point:
+//  - 'heat': a soft glow; overlapping glows build up into a heat map.
+//  - 'area': a count bubble with a name (open reports per barangay).
+export const KIND_SIZE = { heat: [96, 96], area: [52, 52] };
+export function kindMarkup({ kind, severity, count = 0, label = '', selected = false }) {
+  if (kind === 'heat') return { className: `wg-heat wg-heat--${severity || 'medium'}`, html: '' };
+  const big = count >= 10 ? ' wg-area--big' : '';
+  return {
+    className: `wg-area${big}${selected ? ' wg-area--selected' : ''}`,
+    html: `<strong>${esc(count)}</strong><span>${esc(label)}</span>`,
+  };
+}
+
+export function pinMarkup({ kind, severity, status, selected = false, awaiting = false, count, label }) {
+  if (kind) return kindMarkup({ kind, severity, count, label, selected });
   const resolved = status === 'resolved';
   const closed = status === 'rejected' || status === 'duplicate';
   const className = [

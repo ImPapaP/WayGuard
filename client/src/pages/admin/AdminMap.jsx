@@ -1,9 +1,9 @@
 // Interactive map of all reports for LGU staff, including unverified ones.
-import { useState } from 'react';
-import { LuX, LuMapPin } from 'react-icons/lu';
+import { useMemo, useState } from 'react';
+import { LuX, LuMapPin, LuFlame, LuMapPinned, LuLayers } from 'react-icons/lu';
 import { useApi, useDocumentTitle } from '../../lib/hooks.js';
 import { qs } from '../../lib/api.js';
-import { Link } from '../../lib/router.jsx';
+import { Link, useNavigate } from '../../lib/router.jsx';
 import MapView, { MapLegend } from '../../components/MapView.jsx';
 import { ErrorState, SeverityBadge, StatusBadge, DemoTag } from '../../components/ui.jsx';
 import { formatDate, isAwaitingVerification } from '../../lib/format.js';
@@ -16,15 +16,54 @@ const VIEWS = [
   { key: 'all', label: 'All', status: '' },
 ];
 
+const LAYERS = [
+  { key: 'pins', label: 'Pins', icon: LuMapPin },
+  { key: 'heat', label: 'Heat map', icon: LuFlame },
+  { key: 'barangay', label: 'By barangay', icon: LuMapPinned },
+];
+
+// One bubble per barangay at the middle of its reports. (Official barangay
+// boundary shapes are not bundled, so areas are shown as counts, not outlines.)
+function barangayAreas(items) {
+  const groups = new Map();
+  for (const r of items) {
+    const key = (r.barangay || '').trim() || 'Unspecified';
+    if (!groups.has(key)) groups.set(key, { lat: 0, lng: 0, n: 0, high: 0 });
+    const g = groups.get(key);
+    g.lat += r.latitude;
+    g.lng += r.longitude;
+    g.n += 1;
+    if (r.severity === 'high') g.high += 1;
+  }
+  return [...groups.entries()].map(([label, g]) => ({
+    id: `area:${label}`,
+    kind: 'area',
+    label,
+    count: g.n,
+    high: g.high,
+    latitude: g.lat / g.n,
+    longitude: g.lng / g.n,
+  }));
+}
+
 export default function AdminMap() {
   useDocumentTitle('Map');
   const [view, setView] = useState('open');
   const [severity, setSeverity] = useState('');
   const [selected, setSelected] = useState(null);
+  const [layer, setLayer] = useState('pins');
+  const navigate = useNavigate();
   const status = VIEWS.find((v) => v.key === view).status;
   const { data, error, reload } = useApi(`/api/admin/map${qs({ status, severity })}`);
   const items = data?.items || [];
   const current = items.find((r) => r.id === selected);
+  const areas = useMemo(() => barangayAreas(items), [items]);
+  const shown = layer === 'heat'
+    ? items.map((r) => ({ ...r, id: `heat:${r.id}`, kind: 'heat' }))
+    : layer === 'barangay'
+      ? areas
+      : items;
+  const topAreas = [...areas].sort((a, b) => b.count - a.count).slice(0, 8);
 
   return (
     <div className="container page">
@@ -42,6 +81,13 @@ export default function AdminMap() {
             </button>
           ))}
         </div>
+        <div className="segmented map-layer-switch" role="radiogroup" aria-label="Show reports as">
+          {LAYERS.map((l) => (
+            <button key={l.key} type="button" role="radio" aria-checked={layer === l.key} className={layer === l.key ? 'is-on' : ''} onClick={() => { setLayer(l.key); setSelected(null); }}>
+              <l.icon aria-hidden /> {l.label}
+            </button>
+          ))}
+        </div>
         <select className="select select--sm" aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)}>
           <option value="">Any severity</option>
           <option value="high">High</option>
@@ -54,11 +100,47 @@ export default function AdminMap() {
       ) : (
         <div className="map-layout">
           <div className="map-layout__map">
-            <MapView markers={items} selectedId={selected} onMarkerClick={(r) => setSelected(r.id)} fitToMarkers={items.length > 1 && !selected} height={600} label="Map of pothole reports. Select a marker for details." />
-            <MapLegend />
+            <MapView
+              markers={shown}
+              selectedId={selected}
+              onMarkerClick={(r) => {
+                if (r.kind === 'area') {
+                  if (r.label !== 'Unspecified') navigate(`/admin/reports${qs({ barangay: r.label, status })}`);
+                } else setSelected(r.id);
+              }}
+              fitToMarkers={shown.length > 1 && !selected}
+              height={600}
+              label={layer === 'heat' ? 'Heat map of pothole reports' : layer === 'barangay' ? 'Open reports per barangay. Select a bubble to list them.' : 'Map of pothole reports. Select a marker for details.'}
+            />
+            {layer === 'pins' && <MapLegend />}
+            {layer === 'heat' && (
+              <p className="map-layer-note small muted">
+                <span className="heat-key" aria-hidden /> Brighter, redder areas have more reports close together; high-severity reports glow stronger. Switch to Pins to open a report.
+              </p>
+            )}
+            {layer === 'barangay' && (
+              <p className="map-layer-note small muted">
+                <LuLayers aria-hidden /> Each bubble is a barangay, placed at the middle of its reports; the number is how many reports are shown. Red bubbles have 10 or more. Select one to list its reports.
+              </p>
+            )}
           </div>
           <aside className="map-layout__side">
-            {current ? (
+            {layer === 'barangay' ? (
+              <div className="panel">
+                <h2 className="section-title">Barangays with the most reports</h2>
+                {topAreas.length ? (
+                  <ol className="area-rank">
+                    {topAreas.map((a) => (
+                      <li key={a.label}>
+                        {a.label === 'Unspecified' ? <span>{a.label}</span> : <Link to={`/admin/reports${qs({ barangay: a.label, status })}`}>{a.label}</Link>}
+                        <span className="numeral">{a.count}</span>
+                        {a.high > 0 && <span className="small muted">{a.high} high</span>}
+                      </li>
+                    ))}
+                  </ol>
+                ) : <p className="muted small">No reports in this view.</p>}
+              </div>
+            ) : current ? (
               <div className="panel map-detail">
                 <div className="panel__head">
                   <h2 className="numeral">{current.code}</h2>

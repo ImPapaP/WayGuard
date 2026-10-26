@@ -1,7 +1,7 @@
 // Report endpoints used by citizens (and shared report-detail access for
 // staff): submit, list own reports, view details, nearby check, feedback.
 import { z } from 'zod';
-import { Router, readJson, readMultipart, HttpError, conflict } from '../lib/http.js';
+import { Router, readJson, readMultipart, HttpError, conflict, notFound } from '../lib/http.js';
 import { sql } from '../db/index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import {
@@ -241,9 +241,20 @@ reportRoutes.get('/nearby', requireAuth(), async (ctx) => {
     windowDays: settings.duplicate_window_days,
     lguId: ctx.user.lgu_id,
   });
+  const ids = items.map((c) => c.id);
+  const conf = ids.length
+    ? await sql`
+        SELECT report_id, count(*)::int AS n, bool_or(user_id = ${ctx.user.id}) AS mine
+        FROM report_confirmations WHERE report_id = ANY(${ids}) GROUP BY report_id`
+    : [];
+  const confBy = new Map(conf.map((c) => [c.report_id, c]));
   ctx.json(200, {
     radius_m: radius,
     items: items.map((c) => ({
+      id: c.id,
+      confirmations: confBy.get(c.id)?.n ?? 0,
+      confirmed_by_me: Boolean(confBy.get(c.id)?.mine),
+      is_mine: c.reporter_id === ctx.user.id,
       code: c.code,
       status: c.status,
       severity: c.severity,
@@ -290,3 +301,50 @@ reportRoutes.post('/:id/feedback', requireRole('citizen'), async (ctx) => {
   });
   ctx.json(201, { ok: true });
 });
+
+// ---------------------------------------------------------------------------
+// "I saw this too": a resident confirms an open report made by someone else.
+// Raises the report's priority; one confirmation per person; can be undone.
+// ---------------------------------------------------------------------------
+const confirmLimiter = new RateLimiter({ windowMs: 60 * 60 * 1000, max: 60, name: 'confirmations' });
+
+async function confirmableReport(ctx) {
+  const id = parseId(ctx.params.id, 'report id');
+  const [r] = await sql`SELECT id, code, status, reporter_id, lgu_id FROM reports WHERE id = ${id}`;
+  if (!r || !OPEN_STATUSES.includes(r.status)) throw notFound('Report not found or already closed.');
+  return r;
+}
+async function confirmationState(reportId, userId) {
+  const [c] = await sql`
+    SELECT count(*)::int AS n, bool_or(user_id = ${userId}) AS mine
+    FROM report_confirmations WHERE report_id = ${reportId}`;
+  return { confirmations: c.n, confirmed_by_me: Boolean(c.mine) };
+}
+
+reportRoutes.post('/:id/confirm', requireRole('citizen'), async (ctx) => {
+  confirmLimiter.consume(`user:${ctx.user.id}`, ctx);
+  const r = await confirmableReport(ctx);
+  if (r.reporter_id === ctx.user.id) throw conflict('This is your own report — it already counts.');
+  const added = await sql`
+    INSERT INTO report_confirmations (report_id, user_id) VALUES (${r.id}, ${ctx.user.id})
+    ON CONFLICT DO NOTHING RETURNING report_id`;
+  if (added.length) {
+    await recordEvent(sql, { reportId: r.id, actorId: ctx.user.id, type: 'confirmed', message: 'Another resident confirmed this pothole.', isPublic: false });
+    await notifyUsers(sql, {
+      userIds: [r.reporter_id],
+      reportId: r.id,
+      type: 'report_confirmed',
+      title: `${r.code}: another resident saw it too`,
+      body: 'Someone else confirmed the pothole you reported. This helps your LGU prioritise it.',
+    });
+  }
+  ctx.json(200, await confirmationState(r.id, ctx.user.id));
+});
+
+reportRoutes.delete('/:id/confirm', requireRole('citizen'), async (ctx) => {
+  confirmLimiter.consume(`user:${ctx.user.id}`, ctx);
+  const r = await confirmableReport(ctx);
+  await sql`DELETE FROM report_confirmations WHERE report_id = ${r.id} AND user_id = ${ctx.user.id}`;
+  ctx.json(200, await confirmationState(r.id, ctx.user.id));
+});
+

@@ -8,9 +8,11 @@ import './styles/pages.css';
 import './styles/motion.css';
 import App from './App.jsx';
 import { initReveal } from './lib/reveal.js';
+import { initLang } from './lib/i18n/index.js';
 
 createRoot(document.getElementById('root')).render(<App />);
 initReveal();
+initLang();
 
 // Installable PWA: register the service worker in production builds.
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {

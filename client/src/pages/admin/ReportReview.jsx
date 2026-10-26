@@ -29,6 +29,7 @@ import {
   Facts,
   Loading,
   Modal,
+  PriorityBadge,
   SelectField,
   SeverityBadge,
   StatusBadge,
@@ -674,6 +675,33 @@ export default function ReportReview() {
         </div>
 
         <div className="stack">
+          {r.priority && (
+            <section className="panel prio-panel" aria-labelledby="prio-title">
+              <div className="prio-panel__head">
+                <h2 id="prio-title" className="section-title">Priority</h2>
+                <PriorityBadge score={r.priority.score} />
+              </div>
+              {r.priority.score > 0 ? (
+                <ul className="prio-parts">
+                  {[
+                    ['Severity', r.priority.severity, 40],
+                    ['Hazards reported', r.priority.hazards, 25],
+                    [`Residents who saw it too (${r.confirmations})`, r.priority.confirmations, 15],
+                    ['Time waiting', r.priority.age, 15],
+                    ['Road type', r.priority.road, 5],
+                  ].map(([label, v, max]) => (
+                    <li key={label}>
+                      <span>{label}</span>
+                      <span className="prio-parts__track" aria-hidden><i style={{ width: `${(v / max) * 100}%` }} /></span>
+                      <span className="numeral">{v}<small>/{max}</small></span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="small muted">Closed reports have no priority.</p>
+              )}
+            </section>
+          )}
           <section className="panel" aria-labelledby="det-title">
             <h2 id="det-title" className="section-title">
               Report

@@ -8,6 +8,8 @@ import Landing from './pages/public/Landing.jsx';
 import PublicMap from './pages/public/PublicMap.jsx';
 import Login from './pages/public/Login.jsx';
 import Register from './pages/public/Register.jsx';
+import ForgotPassword from './pages/public/ForgotPassword.jsx';
+import ResetPassword from './pages/public/ResetPassword.jsx';
 import NotFound from './pages/public/NotFound.jsx';
 import ForcePasswordChange from './pages/shared/ForcePasswordChange.jsx';
 import Notifications from './pages/shared/Notifications.jsx';
@@ -29,6 +31,7 @@ import Exports from './pages/admin/Exports.jsx';
 import Activity from './pages/admin/Activity.jsx';
 import LGUs from './pages/platform/LGUs.jsx';
 import Accounts from './pages/platform/Accounts.jsx';
+import Compare from './pages/platform/Compare.jsx';
 
 import Tasks from './pages/crew/Tasks.jsx';
 import TaskDetail from './pages/crew/TaskDetail.jsx';
@@ -106,7 +109,10 @@ const routes = [
   { path: '/login', element: <Login /> },
   { path: '/platform/lgus', element: platformAdmin(<LGUs />) },
   { path: '/platform/accounts', element: platformAdmin(<Accounts />) },
+  { path: '/platform/compare', element: platformAdmin(<Compare />) },
   { path: '/register', element: <Register /> },
+  { path: '/forgot-password', element: <ForgotPassword /> },
+  { path: '/reset-password', element: <ResetPassword /> },
   { path: '/r/:id', element: <ReportRedirect /> },
 
   { path: '/app', element: citizen(<CitizenHome />) },

@@ -1092,3 +1092,87 @@
     animation: none;
   }
 }
+
+/* Sign-in "forgot" link and password reset pages */
+.signin-forgot {
+  margin: calc(-1 * var(--s2)) 0 0;
+  text-align: right;
+  font-size: var(--fs-sm);
+}
+.reset-done {
+  display: grid;
+  gap: var(--s3);
+}
+.reset-done h1 {
+  margin: 0;
+}
+.reset-done .auth__switch a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Admin sidebar: which LGU is being viewed */
+.focus-picker {
+  display: grid;
+  gap: 6px;
+  margin: 0 var(--s3) var(--s4);
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #dfe6f1;
+}
+.focus-picker__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.focus-picker__current {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+.focus-picker__current strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  color: var(--white);
+}
+.focus-picker .linkish {
+  color: var(--amber-300);
+  font-weight: 700;
+}
+.focus-picker .icon-btn {
+  color: #dfe6f1;
+}
+.focus-picker .search-select__list {
+  color: var(--text);
+}
+.site-header__logo {
+  flex: none;
+}
+@media (max-width: 380px) {
+  .site-header__logo .logo {
+    height: 32px !important;
+  }
+  .site-nav {
+    gap: 6px;
+  }
+}
+/* On narrow phones the header switch shows only the other language. */
+@media (max-width: 420px) {
+  .site-nav .lang-switch button[aria-pressed='true'] {
+    display: none;
+  }
+  .site-nav .lang-switch {
+    padding: 2px;
+  }
+}

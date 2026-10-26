@@ -27,6 +27,9 @@ import Logo from './Logo.jsx';
 import { Link, NavLink, useLocation, useNavigate } from '../lib/router.jsx';
 import { useAuth, HOME_BY_ROLE } from '../lib/auth.jsx';
 import HeroBackdrop from './HeroBackdrop.jsx';
+import OutboxBanner from './OutboxBanner.jsx';
+import LangSwitch from './LangSwitch.jsx';
+import FocusPicker from './FocusPicker.jsx';
 import { api } from '../lib/api.js';
 import { useClickOutside, useOnline } from '../lib/hooks.js';
 import { initials, ROLES } from '../lib/format.js';
@@ -66,7 +69,7 @@ function OfflineBanner() {
   if (online) return null;
   return (
     <div className="offline-banner" role="status">
-      <LuWifiOff aria-hidden /> You are offline. Reports and updates will load again when you reconnect.
+      <LuWifiOff aria-hidden /> You are offline. You can still report a pothole — it will be sent when you reconnect.
     </div>
   );
 }
@@ -149,6 +152,7 @@ export function PublicHeader() {
           <Logo variant="horizontal-color" height={40} />
         </Link>
         <nav className="site-nav" aria-label="Main">
+          <LangSwitch />
           <NavLink to="/map" className="hide-sm">
             Pothole map
           </NavLink>
@@ -166,7 +170,7 @@ export function PublicHeader() {
             </>
           ) : user ? (
             <Link to={HOME_BY_ROLE[user.role]} className="btn btn--navy btn--sm">
-              Open my workspace
+              <span className="hide-sm">Open my workspace</span><span className="show-sm">My workspace</span>
             </Link>
           ) : (
             <>
@@ -254,6 +258,7 @@ export function AuthLayout({ children, aside, wide = false }) {
       )}
       <main className="auth__form" id="main">
         <div className="auth__card">
+          <div className="auth__lang"><LangSwitch /></div>
           <Link to="/" className="auth__mobile-logo" aria-label="Wayguard home">
             <Logo variant="full-color" height={120} />
           </Link>
@@ -309,6 +314,7 @@ export function AppShell({ kind = 'citizen', children }) {
                 </NavLink>
               ))}
           </nav>
+          {kind === 'citizen' && <LangSwitch className="hide-xs" />}
           <Link to={`${base}/notifications`} className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
             <LuBell aria-hidden />
             {unread > 0 && <span className="icon-btn__dot">{unread > 99 ? '99+' : unread}</span>}
@@ -317,6 +323,7 @@ export function AppShell({ kind = 'citizen', children }) {
         </div>
       </header>
       <OfflineBanner />
+      {kind === 'citizen' && <OutboxBanner />}
       <main id="main" className="app__main">
         {children}
       </main>
@@ -381,6 +388,7 @@ function AdminNav({ counts, unread, onNavigate }) {
             {[
               { to: '/platform/lgus', label: 'LGUs and jurisdictions', icon: LuShieldCheck },
               { to: '/platform/accounts', label: 'Accounts and assignments', icon: LuUserCog },
+              { to: '/platform/compare', label: 'Compare LGUs', icon: LuActivity },
             ].map(render)}
           </nav>
         </>
@@ -398,6 +406,7 @@ function Sidebar({ counts, unread, onNavigate }) {
       <Link to="/admin" className="sidebar__logo" aria-label="Wayguard dashboard" onClick={onNavigate}>
         <Logo variant="horizontal-reversed" height={48} />
       </Link>
+      <FocusPicker />
       <AdminNav counts={counts} unread={unread} onNavigate={onNavigate} />
       <div className="sidebar__foot">
         <div className="sidebar__user">

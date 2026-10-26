@@ -22,7 +22,10 @@ import {
   LuMoon,
   LuCar,
   LuTriangleAlert,
+  LuVolume2,
+  LuVolumeX,
 } from 'react-icons/lu';
+import { voiceSupported, voicePreference, setVoicePreference, speak, alertText, ANNOUNCE_AT } from '../lib/voice.js';
 import { setMapTheme, useMapTheme } from '../lib/mapTheme.js';
 import MapView, { MapLegend } from './MapView.jsx';
 import { StatusBadge, SeverityBadge, DemoTag } from './ui.jsx';
@@ -33,6 +36,7 @@ import { useToast } from '../lib/toast.jsx';
 import { useDebounced } from '../lib/hooks.js';
 import { STATUS, formatDate, formatDistance, timeAgo, isAwaitingVerification } from '../lib/format.js';
 import { pinMarkup } from './mapPins.js';
+import ConfirmButton from './ConfirmButton.jsx';
 
 function distanceM(a, b) {
   const rad = (d) => (d * Math.PI) / 180;
@@ -101,6 +105,8 @@ export default function MapScreen({
   const [following, setFollowing] = useState(true);
   const [speed, setSpeed] = useState(null);
   const [ahead, setAhead] = useState(null);
+  const [voiceOn, setVoiceOn] = useState(() => voiceSupported() && voicePreference());
+  const spoken = useRef(new Map());
   const watchId = useRef(null);
   const last = useRef(null);
   const live = useRef({});
@@ -196,6 +202,27 @@ export default function MapScreen({
     setAhead(best);
   }
 
+  // Say each approaching pothole out loud at 400, 200 and 80 metres.
+  useEffect(() => {
+    if (!drive || !ahead || !voiceOn) return;
+    const id = ahead.r.id;
+    const done = spoken.current.get(id) || new Set();
+    const due = ANNOUNCE_AT.filter((m) => ahead.distance <= m && !done.has(m));
+    if (!due.length) return;
+    due.forEach((m) => done.add(m));
+    spoken.current.set(id, done);
+    const lang = document.documentElement.lang === 'fil' ? 'fil' : 'en';
+    speak(alertText({ distance: ahead.distance, severity: ahead.r.severity, road: ahead.r.road_name }, lang), lang === 'fil' ? 'fil-PH' : 'en-PH');
+  }, [drive, ahead, voiceOn]);
+
+  function toggleVoice() {
+    const next = !voiceOn;
+    setVoiceOn(next);
+    setVoicePreference(next);
+    if (next) speak(document.documentElement.lang === 'fil' ? 'Naka-on ang babala sa boses.' : 'Voice alerts on.');
+    else window.speechSynthesis?.cancel?.();
+  }
+
   function startDrive() {
     touched();
     if (!('geolocation' in navigator) || !window.isSecureContext) {
@@ -208,6 +235,7 @@ export default function MapScreen({
     setQuery('');
     setDrive(true);
     setFollowing(true);
+    spoken.current = new Map();
     last.current = null;
     live.current.gpsWarned = false;
     watchId.current = navigator.geolocation.watchPosition(
@@ -516,6 +544,17 @@ export default function MapScreen({
                 })()}
               </span>
             </div>
+            {voiceSupported() && (
+              <button
+                type="button"
+                className={`btn btn--sm ${voiceOn ? 'btn--navy' : 'btn--secondary'}`}
+                aria-pressed={voiceOn}
+                onClick={toggleVoice}
+                aria-label={voiceOn ? 'Turn voice alerts off' : 'Turn voice alerts on'}
+              >
+                {voiceOn ? <LuVolume2 aria-hidden /> : <LuVolumeX aria-hidden />} Voice
+              </button>
+            )}
             <button type="button" className="btn btn--secondary btn--sm" onClick={stopDrive}>
               <LuX aria-hidden /> Stop
             </button>
@@ -604,7 +643,10 @@ export default function MapScreen({
                 ? `Repaired ${formatDate(selected.resolved_at)}.`
                 : `${STATUS[selected.status]?.help || ''} Last update ${timeAgo(selected.updated_at || selected.created_at)}.`}
             </p>
-            {detailActions && <div className="cluster">{detailActions(selected)}</div>}
+            <div className="cluster">
+              <ConfirmButton key={selected.id} report={selected} />
+              {detailActions && detailActions(selected)}
+            </div>
           </div>
         ) : (
           <div className="mapsheet__body">

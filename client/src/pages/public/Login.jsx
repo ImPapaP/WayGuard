@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { LuSmartphone, LuLayoutDashboard, LuHardHat, LuCircleCheck, LuEye, LuEyeOff, LuShieldCheck } from 'react-icons/lu';
+import { LuSmartphone, LuLayoutDashboard, LuHardHat, LuCircleCheck, LuShieldCheck } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth, HOME_BY_ROLE } from '../../lib/auth.jsx';
 import { api } from '../../lib/api.js';
 import { useDocumentTitle } from '../../lib/hooks.js';
 import { AuthLayout } from '../../components/Shells.jsx';
-import { Button, TextField, Alert } from '../../components/ui.jsx';
+import { Button, TextField, PasswordField, Alert } from '../../components/ui.jsx';
 
 // Only same-site paths are accepted as a redirect target.
 export function safeNext(next, role) {
@@ -34,7 +34,6 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [welcome, setWelcome] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
 
   if (user && !welcome) return <Navigate to={safeNext(query.next, user.role)} />;
 
@@ -100,18 +99,14 @@ export default function Login() {
           onChange={(e) => setForm({ ...form, email: e.target.value })}
           required
         />
-        <TextField
+        <PasswordField
           label="Password"
-          type={showPassword ? 'text' : 'password'}
           autoComplete="current-password"
           value={form.password}
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           required
         />
-        <button type="button" className="linkish password-visibility" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
-          {showPassword ? <LuEyeOff aria-hidden /> : <LuEye aria-hidden />}
-          {showPassword ? 'Hide password' : 'Show password'}
-        </button>
+        <p className="signin-forgot"><Link to="/forgot-password">Forgot your password?</Link></p>
         <Button type="submit" variant="navy" size="lg" block loading={busy}>
           Sign in
         </Button>
@@ -120,7 +115,7 @@ export default function Login() {
         New to Wayguard? <Link to={`/register${query.next ? `?next=${encodeURIComponent(query.next)}` : ''}`}>Create a citizen account</Link>
       </p>
       <p className="auth__switch small" id="forgot-password">
-        Forgot your password? Please contact your LGU administrator to reset it.
+        Can’t reach your e-mail? Your LGU administrator can also reset your password.
       </p>
       <p className="auth__switch auth__return-home">
         <Link to="/">← Return to landing page</Link>

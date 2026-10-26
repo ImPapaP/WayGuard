@@ -20,7 +20,7 @@ import { hashPassword } from '../lib/security.js';
 import { audit } from '../services/audit.js';
 import { getSettings, updateSettings, settingsSchema } from '../services/settings.js';
 import { destroyUserSessions, userColumns } from '../services/sessions.js';
-import { adminFilters, possibleDuplicatesExpr, SORTS, recordEvent, loadReportRow } from '../services/reports.js';
+import { adminFilters, possibleDuplicatesExpr, SORTS, recordEvent, loadReportRow, priorityExpr, confirmationsExpr } from '../services/reports.js';
 import * as workflow from '../services/workflow.js';
 import { computeStats } from '../services/stats.js';
 import { notifyUsers } from '../services/notifications.js';
@@ -44,6 +44,8 @@ adminRoutes.get('/reports', adminOrStaff, async (ctx) => {
            r.created_at, r.updated_at, r.work_completed_at, r.latitude, r.longitude, r.is_demo,
            ag.name AS agency_name, t.name AS team_name,
            ${dupExpr} AS possible_duplicates,
+           ${priorityExpr()} AS priority,
+           ${confirmationsExpr()} AS confirmations,
            (SELECT count(*)::int FROM report_photos p WHERE p.report_id = r.id AND p.kind = 'report') AS photo_count,
            count(*) OVER()::int AS total
     FROM reports r
@@ -541,7 +543,7 @@ adminRoutes.patch('/agencies/:id', admin, async (ctx) => {
 async function settingsLgu(ctx) {
   const scope = ctx.user.accessible_lgu_ids || [ctx.user.lgu_id];
   const requested = Number(ctx.query.lgu_id);
-  let id = Number.isInteger(requested) && requested > 0 ? requested : ctx.user.lgu_id;
+  let id = Number.isInteger(requested) && requested > 0 ? requested : (ctx.user.focus_lgu?.id ?? ctx.user.lgu_id);
   if (id == null) {
     const [busiest] = await sql`
       SELECT l.id FROM lgus l LEFT JOIN reports r ON r.lgu_id = l.id

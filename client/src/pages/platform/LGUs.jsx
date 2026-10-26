@@ -388,6 +388,7 @@ export default function LGUs() {
                 <LuPlus aria-hidden /> Add custom LGU
               </Button>
               <Link to="/platform/accounts" className="btn btn--navy"><LuUserPlus aria-hidden /> Accounts &amp; assignments</Link>
+              <Link to="/platform/compare" className="btn btn--secondary">Compare LGUs</Link>
               <Button variant="secondary" onClick={signOut}><LuLogOut aria-hidden /> Sign out</Button>
             </div>
             <span className="small muted">Signed in as <strong>{user?.full_name}</strong></span>

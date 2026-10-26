@@ -59,9 +59,11 @@ test('official PSGC directory sync creates the full hierarchy and is repeatable'
   assert.equal(bulacan.jurisdiction_level, 'province');
   assert.equal(bulacan.parent_name, 'Region III (Central Luzon)');
 
-  const firstSync = await syncPsgcDirectory({ db: sql, log: () => {} });
+  const firstSync = await syncPsgcDirectory({ db: sql, log: () => {}, force: true });
   assert.equal(firstSync.inserted, 0, 'second sync should not insert duplicates');
   assert.equal(firstSync.matched, 1747);
+  const restart = await syncPsgcDirectory({ db: sql, log: () => {} });
+  assert.equal(restart.skipped, true, 'an unchanged directory is not reloaded on restart');
 });
 
 test('platform administrators can create an account at a selected PSGC area with descendant-only access', async () => {
@@ -397,3 +399,45 @@ test('the platform administrator has every LGU administrator power in every LGU'
   assert.equal((await submitReport(platform)).status, 403);
 });
 
+
+test('focusing on one LGU narrows every view; comparison and monthly/figures exports work', async () => {
+  const sql = getSql();
+  const [focusTown] = await sql`
+    INSERT INTO lgus (name, slug, city, province, jurisdiction_level, is_active)
+    VALUES ('Focus Test Town', 'focus-test-town', 'Focus Test Town', 'Bulacan', 'municipality', TRUE) RETURNING id`;
+  const resident = await login(server.base, await createUser({ role: 'citizen', lguId: focusTown.id }));
+  const made = await submitReport(resident, { latitude: '14.9011', longitude: '120.9022', road_name: 'Focus Road' });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+
+  const all = await platform.get('/api/admin/stats');
+  const focused = await platform.get('/api/admin/stats', { headers: { 'x-wayguard-focus': String(focusTown.id) } });
+  assert.equal(focused.status, 200);
+  assert.equal(focused.data.totals.total, 1, 'only the focused LGU is counted');
+  assert.ok(all.data.totals.total > 1);
+  const me = await platform.get('/api/auth/me', { headers: { 'x-wayguard-focus': String(focusTown.id) } });
+  assert.equal(me.data.user.focus_lgu.name, 'Focus Test Town');
+  const list = await platform.get('/api/admin/reports?page_size=100', { headers: { 'x-wayguard-focus': String(focusTown.id) } });
+  assert.deepEqual(list.data.items.map((r) => r.road_name), ['Focus Road']);
+  const csvFocused = await platform.get(`/api/admin/exports/reports.csv?focus_lgu=${focusTown.id}`);
+  assert.ok(String(csvFocused.data).includes('Focus Road'));
+
+  // Focus can only narrow: an LGU admin cannot focus on another LGU.
+  const outside = await defaultAdmin.get('/api/admin/stats', { headers: { 'x-wayguard-focus': String(focusTown.id) } });
+  const own = await defaultAdmin.get('/api/admin/stats');
+  assert.equal(outside.data.totals.total, own.data.totals.total, 'an unrelated focus is ignored');
+
+  const compare = await platform.get('/api/platform/compare');
+  assert.equal(compare.status, 200);
+  const row = compare.data.items.find((x) => x.id === focusTown.id);
+  assert.equal(row.total, 1);
+  assert.equal(row.open, 1);
+  assert.equal((await defaultAdmin.get('/api/platform/compare')).status, 403);
+
+  const figures = await defaultAdmin.get('/api/admin/exports/stats.csv');
+  assert.equal(figures.status, 200);
+  assert.match(String(figures.data), /Total reports,\d+/);
+  const month = new Date().toISOString().slice(0, 7);
+  const monthly = await platform.get(`/api/admin/exports/monthly.pdf?month=${month}&focus_lgu=${focusTown.id}`);
+  assert.equal(monthly.status, 200);
+  assert.match(monthly.headers.get('content-type'), /application\/pdf/);
+});

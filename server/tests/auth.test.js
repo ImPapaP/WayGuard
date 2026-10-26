@@ -157,3 +157,39 @@ test('unknown API routes return JSON 404 and malformed JSON returns 400', async 
   });
   assert.equal(bad.status, 400);
 });
+
+test('forgotten password: same answer for any address, one-time link, signs out every device', async () => {
+  const { createPasswordReset } = await import('../src/services/passwordReset.js');
+  const user = await createUser({ role: 'citizen', password: 'OldPass123' });
+  const device = await login(server.base, user);
+  const anon = new Client(server.base);
+
+  const unknown = await anon.post('/api/auth/forgot-password', { email: 'nobody-here@example.test' });
+  const known = await anon.post('/api/auth/forgot-password', { email: user.email.toUpperCase() });
+  assert.equal(unknown.status, 200);
+  assert.equal(known.status, 200);
+  assert.deepEqual(Object.keys(unknown.data).sort(), Object.keys(known.data).sort(), 'the reply does not reveal whether the account exists');
+  const [{ n }] = await getSql()`SELECT count(*)::int AS n FROM password_reset_tokens WHERE user_id = ${user.id} AND used_at IS NULL`;
+  assert.equal(n, 1, 'a reset link was created for the real account only');
+
+  const token = await createPasswordReset(user.id);
+  const [stored] = await getSql()`SELECT token_hash FROM password_reset_tokens WHERE user_id = ${user.id} AND used_at IS NULL`;
+  assert.notEqual(stored.token_hash, token, 'only a hash of the token is stored');
+  assert.equal((await anon.get('/api/auth/reset-password?token=' + token)).data.valid, true);
+
+  const weak = await anon.post('/api/auth/reset-password', { token, new_password: 'short' });
+  assert.equal(weak.status, 400);
+  const ok = await anon.post('/api/auth/reset-password', { token, new_password: 'NewPass456' });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal((await device.get('/api/auth/me')).data.user, null, 'existing sessions are signed out');
+  assert.equal((await new Client(server.base).post('/api/auth/login', { email: user.email, password: 'NewPass456' })).status, 200);
+  assert.equal((await new Client(server.base).post('/api/auth/login', { email: user.email, password: 'OldPass123' })).status, 401);
+
+  const again = await anon.post('/api/auth/reset-password', { token, new_password: 'Another789' });
+  assert.equal(again.status, 400, 'a link works only once');
+  assert.equal((await anon.get('/api/auth/reset-password?token=' + token)).data.valid, false);
+
+  const expired = await createPasswordReset(user.id);
+  await getSql()`UPDATE password_reset_tokens SET expires_at = now() - interval '1 minute' WHERE user_id = ${user.id} AND used_at IS NULL`;
+  assert.equal((await anon.post('/api/auth/reset-password', { token: expired, new_password: 'Another789' })).status, 400, 'expired links are refused');
+});

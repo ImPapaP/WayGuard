@@ -419,3 +419,267 @@ export async function summaryPdf(stats, { lguName }) {
   drawFooters(doc, fonts);
   return Buffer.from(await doc.save());
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard figures as CSV: one file with a section per table.
+// ---------------------------------------------------------------------------
+export function statsCsv(stats, { lguName }) {
+  const rows = [];
+  const add = (...cells) => rows.push(cells);
+  const blank = () => rows.push([]);
+  const t = stats.totals;
+  add('Wayguard dashboard figures');
+  add('LGU', lguName);
+  add('Period', stats.range.from || stats.range.to ? `${stats.range.from || '...'} to ${stats.range.to || '...'}` : 'All time');
+  add('Generated', fmtDateTime(stats.generated_at));
+  blank();
+  add('Measure', 'Value');
+  [
+    ['Total reports', t.total],
+    ['Open now', t.open],
+    ['To review', t.pending_review],
+    ['To assign', t.awaiting_assignment],
+    ['Being repaired', t.active_repairs],
+    ['Crew says fixed, to check', t.awaiting_verification],
+    ['Resolved', t.resolved],
+    ['Rejected or duplicate', t.closed_invalid],
+    ['Resolution rate (%)', t.resolution_rate],
+    ['Median days to repair', t.median_resolution_days],
+    ['Average days to repair', t.avg_resolution_days],
+    ['Average hours to first response', t.avg_first_response_hours],
+    ['Overdue repairs', t.overdue_tasks],
+    ['New in last 7 days', t.new_7d],
+    ['New in the 7 days before', t.new_prev_7d],
+    ['Fixed in last 30 days', t.resolved_30d],
+    ['High severity open over 7 days', t.high_open_over_7_days],
+    ['Citizen rating (average of 5)', stats.feedback.average],
+    ['Citizen ratings received', stats.feedback.count],
+  ].forEach(([k, v]) => add(k, v ?? ''));
+  blank();
+  add('Month', 'Reported', 'Resolved');
+  stats.monthly.forEach((m) => add(m.month, m.reported, m.resolved));
+  blank();
+  add('Status', 'Reports');
+  Object.entries(stats.by_status).forEach(([k, v]) => add(STATUS_LABELS[k] || k, v));
+  blank();
+  add('Severity', 'Open', 'Total');
+  ['high', 'medium', 'low'].forEach((k) => add(SEVERITY_LABEL[k], stats.by_severity[k]?.open ?? 0, stats.by_severity[k]?.total ?? 0));
+  blank();
+  add('Barangay', 'Open reports');
+  stats.top_barangays.forEach((b) => add(b.barangay, b.open));
+  blank();
+  add('Road', 'Open', 'Open high severity', 'Total');
+  (stats.top_roads || []).forEach((r) => add(r.road_name, r.open, r.open_high, r.total));
+  blank();
+  add('Road type', 'Open', 'Total');
+  (stats.by_road_type || []).forEach((r) => add(r.road_type, r.open, r.total));
+  blank();
+  add('Hazard', 'Reports');
+  (stats.hazards || []).forEach((h) => add(h.hazard, h.n));
+  blank();
+  add('Team', 'Active', 'Overdue', 'Completed', 'Average days per repair');
+  stats.teams.forEach((tm) => add(tm.name, tm.active_tasks, tm.overdue ?? '', tm.completed, tm.avg_repair_days ?? ''));
+  blank();
+  add('Rating', 'Count');
+  (stats.ratings || []).forEach((r) => add(`${r.rating} star`, r.n));
+  if (stats.by_lgu?.length) {
+    blank();
+    add('LGU', 'Open', 'Resolved', 'Total');
+    stats.by_lgu.forEach((l) => add(l.name, l.open, l.resolved, l.total));
+  }
+  const cell = (v) => {
+    let s = v == null ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // never let a spreadsheet run it as a formula
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return '﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
+// ---------------------------------------------------------------------------
+// Monthly accomplishment report for the mayor / council (A4 portrait).
+// ---------------------------------------------------------------------------
+export async function computeMonthly(month, lguIds) {
+  const tz = config.timezone;
+  const scope = lguIds == null ? sql`TRUE` : sql`r.lgu_id = ANY(${lguIds})`;
+  const start = sql`(${month + '-01'}::date::timestamp AT TIME ZONE ${tz})`;
+  const end = sql`((${month + '-01'}::date + interval '1 month')::timestamp AT TIME ZONE ${tz})`;
+  const [s] = await sql`
+    SELECT
+      count(*) FILTER (WHERE r.created_at >= ${start} AND r.created_at < ${end})::int AS received,
+      count(*) FILTER (WHERE r.verified_at >= ${start} AND r.verified_at < ${end})::int AS verified,
+      count(*) FILTER (WHERE r.status = 'resolved' AND r.resolved_at >= ${start} AND r.resolved_at < ${end})::int AS resolved,
+      count(*) FILTER (WHERE r.status IN ('rejected', 'duplicate') AND r.updated_at >= ${start} AND r.updated_at < ${end})::int AS closed_invalid,
+      count(*) FILTER (WHERE r.created_at < ${end}
+        AND NOT (r.status = 'resolved' AND r.resolved_at < ${end})
+        AND NOT (r.status IN ('rejected', 'duplicate') AND r.updated_at < ${end}))::int AS open_at_end,
+      round((avg(EXTRACT(EPOCH FROM (r.resolved_at - r.created_at)) / 86400)
+        FILTER (WHERE r.status = 'resolved' AND r.resolved_at >= ${start} AND r.resolved_at < ${end}))::numeric, 1)::float AS avg_days,
+      round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (r.resolved_at - r.created_at)) / 86400)
+        FILTER (WHERE r.status = 'resolved' AND r.resolved_at >= ${start} AND r.resolved_at < ${end}))::numeric, 1)::float AS median_days
+    FROM reports r WHERE ${scope}`;
+  const resolvedList = await sql`
+    SELECT r.code, r.road_name, r.barangay, r.severity, r.created_at, r.resolved_at,
+      round((EXTRACT(EPOCH FROM (r.resolved_at - r.created_at)) / 86400)::numeric, 1)::float AS days,
+      (SELECT t.name FROM assignments a JOIN maintenance_teams t ON t.id = a.team_id
+        WHERE a.report_id = r.id ORDER BY a.assigned_at DESC LIMIT 1) AS team
+    FROM reports r
+    WHERE ${scope} AND r.status = 'resolved' AND r.resolved_at >= ${start} AND r.resolved_at < ${end}
+    ORDER BY r.resolved_at`;
+  const barangays = await sql`
+    SELECT COALESCE(NULLIF(r.barangay, ''), 'Unspecified') AS barangay, count(*)::int AS received,
+      count(*) FILTER (WHERE r.severity = 'high')::int AS high
+    FROM reports r WHERE ${scope} AND r.created_at >= ${start} AND r.created_at < ${end}
+    GROUP BY 1 ORDER BY received DESC, 1 LIMIT 12`;
+  const teams = await sql`
+    SELECT t.name,
+      count(*) FILTER (WHERE a.end_reason = 'completed' AND a.ended_at >= ${start} AND a.ended_at < ${end})::int AS completed,
+      count(*) FILTER (WHERE a.assigned_at >= ${start} AND a.assigned_at < ${end})::int AS assigned
+    FROM assignments a JOIN maintenance_teams t ON t.id = a.team_id JOIN reports r ON r.id = a.report_id
+    WHERE ${scope}
+    GROUP BY t.name HAVING count(*) FILTER (WHERE (a.assigned_at >= ${start} AND a.assigned_at < ${end})
+      OR (a.ended_at >= ${start} AND a.ended_at < ${end})) > 0
+    ORDER BY completed DESC, t.name`;
+  const [fb] = await sql`
+    SELECT count(*)::int AS count, round(avg(f.rating)::numeric, 2)::float AS average
+    FROM feedback f JOIN reports r ON r.id = f.report_id
+    WHERE ${scope} AND f.created_at >= ${start} AND f.created_at < ${end}`;
+  return { month, summary: s, resolved: resolvedList, barangays, teams, feedback: fb };
+}
+
+export async function monthlyPdf(data, { lguName }) {
+  const ctx = await newDoc('Wayguard monthly accomplishment report');
+  const { doc, fonts } = ctx;
+  const safe = makeSafe(fonts.regular);
+  const W = 595.28;
+  const H = 841.89;
+  const margin = 36;
+  const [yy, mm] = data.month.split('-').map(Number);
+  const monthName = new Date(yy, mm - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  let page = doc.addPage([W, H]);
+  let y = drawHeader(page, ctx, { title: 'Monthly Accomplishment Report', subtitle: `${monthName} | generated ${fmtDateTime(new Date())}`, lguName });
+  const need = (h) => {
+    if (y - h < 60) {
+      page = doc.addPage([W, H]);
+      y = drawHeader(page, ctx, { title: 'Monthly Accomplishment Report', subtitle: `${monthName} (continued)`, lguName });
+    }
+  };
+  const text = (s, x, size = 8.5, font = fonts.regular, color = INK) => page.drawText(safe(s), { x, y, size, font, color });
+  const title = (s) => {
+    need(40);
+    y -= 6;
+    text(s, margin, 11, fonts.bold, NAVY);
+    y -= 16;
+  };
+
+  const s = data.summary;
+  const tiles = [
+    ['Reports received', s.received],
+    ['Verified', s.verified],
+    ['Potholes repaired', s.resolved],
+    ['Not accepted', s.closed_invalid],
+    ['Open at month end', s.open_at_end],
+    ['Median days to repair', s.median_days ?? '-'],
+  ];
+  const tileW = (W - margin * 2 - 5 * 8) / 6;
+  tiles.forEach(([label, value], i) => {
+    const x = margin + i * (tileW + 8);
+    page.drawRectangle({ x, y: y - 50, width: tileW, height: 54, color: CLOUD, borderColor: LINE, borderWidth: 0.5 });
+    page.drawRectangle({ x, y: y + 2, width: tileW, height: 2, color: i === 2 ? AMBER : NAVY });
+    page.drawText(String(value), { x: x + 8, y: y - 22, size: 18, font: fonts.bold, color: NAVY });
+    page.drawText(fit(safe(label), fonts.regular, 7, tileW - 12), { x: x + 8, y: y - 40, size: 7, font: fonts.regular, color: MUTED });
+  });
+  y -= 76;
+
+  const para = `In ${monthName}, the LGU received ${s.received} pothole report(s) through Wayguard, verified ${s.verified} and completed ${s.resolved} repair(s)` +
+    (s.avg_days != null ? `, taking ${s.median_days} day(s) from report to verified repair at the median (average ${s.avg_days}).` : '.') +
+    ` ${s.open_at_end} report(s) were still open at the end of the month.` +
+    (data.feedback.count ? ` Residents rated ${data.feedback.count} repair(s), ${data.feedback.average} of 5 on average.` : '');
+  const words = safe(para).split(' ');
+  let line = '';
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (fonts.regular.widthOfTextAtSize(next, 9.5) > W - margin * 2) {
+      text(line, margin, 9.5);
+      y -= 14;
+      line = w;
+    } else line = next;
+  }
+  if (line) {
+    text(line, margin, 9.5);
+    y -= 22;
+  }
+
+  const table = (cols, rows, empty) => {
+    const rowH = 15;
+    need(rowH * 2);
+    let x = margin;
+    page.drawRectangle({ x: margin, y: y - 4, width: W - margin * 2, height: rowH, color: NAVY });
+    for (const c of cols) {
+      page.drawText(safe(c.label), { x: x + 4, y: y, size: 7.5, font: fonts.bold, color: WHITE });
+      x += c.w;
+    }
+    y -= rowH;
+    if (!rows.length) {
+      text(empty, margin + 4, 8.5, fonts.regular, MUTED);
+      y -= rowH + 6;
+      return;
+    }
+    rows.forEach((r, i) => {
+      need(rowH);
+      if (i % 2) page.drawRectangle({ x: margin, y: y - 4, width: W - margin * 2, height: rowH, color: CLOUD });
+      let cx = margin;
+      for (const c of cols) {
+        page.drawText(fit(safe(r[c.key] ?? ''), fonts.regular, 8, c.w - 8), { x: cx + 4, y, size: 8, font: fonts.regular, color: INK });
+        cx += c.w;
+      }
+      y -= rowH;
+    });
+    y -= 10;
+  };
+
+  title('Reports received by barangay');
+  table(
+    [{ key: 'barangay', label: 'Barangay', w: 300 }, { key: 'received', label: 'Received', w: 110 }, { key: 'high', label: 'High severity', w: 113 }],
+    data.barangays.map((b) => ({ ...b, received: String(b.received), high: String(b.high) })),
+    'No reports were received this month.',
+  );
+  title('Road crews');
+  table(
+    [{ key: 'name', label: 'Team', w: 300 }, { key: 'assigned', label: 'Repairs assigned', w: 110 }, { key: 'completed', label: 'Repairs completed', w: 113 }],
+    data.teams.map((t) => ({ ...t, assigned: String(t.assigned), completed: String(t.completed) })),
+    'No crew activity this month.',
+  );
+  title(`Potholes repaired (${data.resolved.length})`);
+  table(
+    [
+      { key: 'code', label: 'Code', w: 82 },
+      { key: 'road', label: 'Road / Barangay', w: 150 },
+      { key: 'severity', label: 'Severity', w: 48 },
+      { key: 'reported', label: 'Reported', w: 60 },
+      { key: 'fixed', label: 'Verified', w: 60 },
+      { key: 'days', label: 'Days', w: 32 },
+      { key: 'team', label: 'Team', w: 91 },
+    ],
+    data.resolved.map((r) => ({
+      code: r.code,
+      road: [r.road_name, r.barangay].filter(Boolean).join(', '),
+      severity: SEVERITY_LABEL[r.severity] || r.severity,
+      reported: fmtDate(r.created_at),
+      fixed: fmtDate(r.resolved_at),
+      days: String(r.days),
+      team: r.team || '',
+    })),
+    'No repairs were verified this month.',
+  );
+
+  need(90);
+  y -= 20;
+  const sig = (label, x) => {
+    page.drawLine({ start: { x, y }, end: { x: x + 200, y }, thickness: 0.6, color: INK });
+    page.drawText(label, { x, y: y - 12, size: 8, font: fonts.regular, color: MUTED });
+  };
+  sig('Prepared by (name, position, date)', margin);
+  sig('Noted by (name, position, date)', W - margin - 200);
+  drawFooters(doc, fonts);
+  return Buffer.from(await doc.save());
+}

@@ -35,7 +35,9 @@ Documentation is in [`docs/`](docs/):
 [demo checklist](docs/07-demo-checklist.md) ·
 [deployment](docs/08-deployment.md) ·
 [brand usage](docs/09-brand-usage.md) ·
-[go live](docs/10-go-live.md).
+[go live](docs/10-go-live.md) ·
+[uptime, e-mail and phone testing](docs/11-operations.md) ·
+[working together](CONTRIBUTING.md).
 Development status and decisions: [`WAYGUARD_PROGRESS.md`](WAYGUARD_PROGRESS.md).
 
 ---
