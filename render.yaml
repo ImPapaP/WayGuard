@@ -14,7 +14,7 @@ services:
     # Applies database migrations, loads the labelled demo data only if
     # DEMO_DATA=on (DEMO_DATA=remove deletes it), creates the first
     # administrator once (INITIAL_ADMIN_*), then starts the server.
-    startCommand: npm run db:migrate && npm run psgc:sync && npm run db:seed:auto && npm start
+    startCommand: npm run db:migrate && npm run psgc:sync && npm run platform-admin:bootstrap && npm run db:seed:auto && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
