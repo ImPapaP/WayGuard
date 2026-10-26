@@ -448,6 +448,41 @@
   background: rgba(255, 255, 255, 0.06);
   color: var(--white);
 }
+
+/* Sidebar actions should match navigation links, not the light account menu. */
+.sidebar__nav button.menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: 10px var(--s3);
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: #d5deeb;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar__nav button.menu__item svg {
+  width: 19px;
+  height: 19px;
+  flex: none;
+}
+
+.sidebar__nav button.menu__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--white);
+}
+
+.sidebar__nav button.menu__item:focus-visible {
+  color: var(--white);
+  box-shadow: 0 0 0 2px var(--amber);
+  border-radius: var(--r-md);
+}
 .sidebar__nav a[aria-current='page'] {
   background: var(--navy);
   color: var(--white);
