@@ -199,8 +199,7 @@ export function PublicFooter() {
               Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors.{' '}
             </>
           )}
-          Wayguard IT 305 project,
-          Bulacan State University.
+          Built for safer roads and stronger communities.
         </div>
       </div>
     </footer>
