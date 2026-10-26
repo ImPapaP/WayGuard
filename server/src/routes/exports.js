@@ -23,7 +23,7 @@ function filterSummary(query) {
 
 exportRoutes.get('/reports.csv', admin, async (ctx) => {
   limiter.consume(`user:${ctx.user.id}`, ctx);
-  const rows = await loadExportRows(ctx.query, 10000);
+  const rows = await loadExportRows(ctx.query, 10000, ctx.user.lgu_id);
   await audit(sql, {
     actorId: ctx.user.id,
     action: 'export.csv',
@@ -39,8 +39,8 @@ exportRoutes.get('/reports.csv', admin, async (ctx) => {
 
 exportRoutes.get('/reports.pdf', admin, async (ctx) => {
   limiter.consume(`user:${ctx.user.id}`, ctx);
-  const rows = await loadExportRows(ctx.query, 2000);
-  const { lgu_name } = await getSettings();
+  const rows = await loadExportRows(ctx.query, 2000, ctx.user.lgu_id);
+  const { lgu_name } = await getSettings(sql, ctx.user.lgu_id);
   const pdf = await reportsPdf(rows, { query: ctx.query, lguName: lgu_name });
   await audit(sql, {
     actorId: ctx.user.id,
@@ -57,7 +57,7 @@ exportRoutes.get('/reports.pdf', admin, async (ctx) => {
 
 exportRoutes.get('/summary.pdf', admin, async (ctx) => {
   limiter.consume(`user:${ctx.user.id}`, ctx);
-  const stats = await computeStats(ctx.query);
+  const stats = await computeStats(ctx.query, ctx.user.lgu_id);
   const { lgu_name } = await getSettings();
   const pdf = await summaryPdf(stats, { lguName: lgu_name });
   await audit(sql, {
