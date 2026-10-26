@@ -79,6 +79,8 @@ export function loadSession() {
               FROM admin_jurisdiction_assignments a
               WHERE a.user_id = ${user.id}
               UNION
+              SELECT lgu_id FROM users WHERE id = ${user.id} AND lgu_id IS NOT NULL
+              UNION
               SELECT child.id
               FROM lgus child
               JOIN accessible parent ON child.parent_lgu_id = parent.id
