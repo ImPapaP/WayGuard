@@ -98,6 +98,141 @@ platformRoutes.get('/lgus', platformAdmin, async (ctx) => {
   ctx.json(200, { items: rows });
 });
 
+// Central account directory and jurisdiction assignment APIs, for platform administrators.
+const accountUpdateSchema = z.object({
+  role: z.enum(['citizen', 'admin', 'staff', 'maintenance']).optional(),
+  is_active: z.boolean().optional(),
+}).refine((v) => v.role !== undefined || v.is_active !== undefined, 'Nothing to update.');
+const jurisdictionAssignmentSchema = z.object({
+  lgu_ids: z.array(z.number().int().positive()).min(1).max(100),
+});
+
+platformRoutes.get('/accounts', platformAdmin, async (ctx) => {
+  const filters = [];
+  if (['citizen', 'admin', 'staff', 'maintenance'].includes(ctx.query.role)) filters.push(sql`u.role = ${ctx.query.role}`);
+  if (ctx.query.status === 'active') filters.push(sql`u.is_active`);
+  if (ctx.query.status === 'inactive') filters.push(sql`NOT u.is_active`);
+  if (ctx.query.q && String(ctx.query.q).trim()) {
+    const q = `%${String(ctx.query.q).trim().slice(0, 100).replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+    filters.push(sql`(u.full_name ILIKE ${q} OR u.email ILIKE ${q} OR l.name ILIKE ${q})`);
+  }
+  const where = filters.reduce((acc, filter) => sql`${acc} AND ${filter}`, sql`TRUE`);
+  const items = await sql`
+    SELECT u.id, u.email, u.full_name, u.phone, u.role, u.lgu_id, u.is_active,
+           u.last_login_at, u.created_at, l.name AS lgu_name,
+           COALESCE((SELECT array_agg(a.lgu_id ORDER BY a.lgu_id)
+                     FROM admin_jurisdiction_assignments a WHERE a.user_id = u.id), ARRAY[]::int[]) AS jurisdiction_lgu_ids,
+           COALESCE((SELECT json_agg(json_build_object('id', j.id, 'name', j.name, 'level', j.jurisdiction_level) ORDER BY j.name)
+                     FROM admin_jurisdiction_assignments a JOIN lgus j ON j.id = a.lgu_id WHERE a.user_id = u.id), '[]'::json) AS jurisdictions
+    FROM users u LEFT JOIN lgus l ON l.id = u.lgu_id
+    WHERE u.role <> 'platform_admin' AND ${where}
+    ORDER BY u.is_active DESC, u.full_name, u.id`;
+  ctx.json(200, { items });
+});
+
+platformRoutes.patch('/accounts/:id', platformAdmin, async (ctx) => {
+  const id = parseId(ctx.params.id, 'account id');
+  const body = await readJson(ctx, accountUpdateSchema);
+  const result = await sql.begin(async (tx) => {
+    const [current] = await tx`SELECT id, role, lgu_id, is_active FROM users WHERE id = ${id} FOR UPDATE`;
+    if (!current || current.role === 'platform_admin') throw notFound('Account not found.');
+    const role = body.role ?? current.role;
+    const isActive = body.is_active ?? current.is_active;
+    if (role === current.role && isActive === current.is_active) return { changed: false, role, is_active: isActive };
+    if (current.role === 'admin' && current.is_active && (role !== 'admin' || !isActive)) {
+      const [{ n }] = await tx`SELECT count(*)::int AS n FROM users
+        WHERE role = 'admin' AND lgu_id = ${current.lgu_id} AND is_active AND id <> ${id}`;
+      if (n === 0) throw conflict('This is the last active administrator for its LGU. Assign another active administrator before removing access.');
+    }
+    if (current.role !== 'admin' && role === 'admin') {
+      const [newAssignment] = await tx`
+        INSERT INTO admin_jurisdiction_assignments (user_id, lgu_id, assigned_by)
+        VALUES (${id}, ${current.lgu_id}, ${ctx.user.id})
+        ON CONFLICT (user_id, lgu_id) DO NOTHING RETURNING lgu_id`;
+      if (newAssignment) await tx`
+        INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+        VALUES (${id}, ${current.lgu_id}, 'assigned', ${ctx.user.id}, ${tx.json({ source: 'role_change' })})`;
+    }
+    if (current.role === 'admin' && role !== 'admin') {
+      const removed = await tx`DELETE FROM admin_jurisdiction_assignments WHERE user_id = ${id} RETURNING lgu_id`;
+      for (const row of removed) await tx`
+        INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+        VALUES (${id}, ${row.lgu_id}, 'revoked', ${ctx.user.id}, ${tx.json({ source: 'role_change' })})`;
+    }
+    await tx`UPDATE users SET role = ${role}, is_active = ${isActive}, updated_at = now() WHERE id = ${id}`;
+    await tx`DELETE FROM sessions WHERE user_id = ${id}`;
+    await audit(tx, {
+      actorId: ctx.user.id, action: 'platform.account.update', targetType: 'user', targetId: id,
+      details: {
+        ...(role !== current.role ? { role: { from: current.role, to: role } } : {}),
+        ...(isActive !== current.is_active ? { is_active: { from: current.is_active, to: isActive } } : {}),
+      }, ip: ctx.ip,
+    });
+    return { changed: true, role, is_active: isActive };
+  });
+  ctx.json(200, result);
+});
+
+platformRoutes.put('/accounts/:id/jurisdictions', platformAdmin, async (ctx) => {
+  const id = parseId(ctx.params.id, 'account id');
+  const body = await readJson(ctx, jurisdictionAssignmentSchema);
+  const requested = [...new Set(body.lgu_ids)];
+  if (requested.length !== body.lgu_ids.length) throw badRequest('Choose each jurisdiction only once.');
+  const result = await sql.begin(async (tx) => {
+    const [account] = await tx`SELECT id, role, lgu_id FROM users WHERE id = ${id} FOR UPDATE`;
+    if (!account || account.role !== 'admin') throw conflict('Jurisdiction assignments are only available to LGU administrator accounts.');
+    const valid = await tx`SELECT id FROM lgus WHERE id = ANY(${requested}) AND is_active`;
+    if (valid.length !== requested.length) throw badRequest('Every assigned jurisdiction must exist and be active.');
+    const current = await tx`SELECT lgu_id FROM admin_jurisdiction_assignments WHERE user_id = ${id}`;
+    const existing = current.map((row) => row.lgu_id);
+    const add = requested.filter((lguId) => !existing.includes(lguId));
+    const remove = existing.filter((lguId) => !requested.includes(lguId));
+    const changed = add.length > 0 || remove.length > 0 || account.lgu_id !== requested[0];
+    if (!changed) return { changed: false, lgu_ids: requested };
+    if (account.lgu_id !== requested[0]) {
+      const [{ n }] = await tx`SELECT count(*)::int AS n FROM users
+        WHERE id <> ${id} AND role = 'admin' AND is_active AND lgu_id = ${account.lgu_id}`;
+      if (n === 0) throw conflict('This is the last active administrator for the current primary LGU. Add another administrator before moving the primary assignment.');
+    }
+    for (const lguId of add) {
+      await tx`INSERT INTO admin_jurisdiction_assignments (user_id, lgu_id, assigned_by)
+        VALUES (${id}, ${lguId}, ${ctx.user.id}) ON CONFLICT (user_id, lgu_id) DO NOTHING`;
+      await tx`INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+        VALUES (${id}, ${lguId}, 'assigned', ${ctx.user.id},
+          ${tx.json({ source: 'management_assignment', prior_lgu_ids: existing, requested_lgu_ids: requested })})`;
+    }
+    for (const lguId of remove) {
+      await tx`DELETE FROM admin_jurisdiction_assignments WHERE user_id = ${id} AND lgu_id = ${lguId}`;
+      await tx`INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+        VALUES (${id}, ${lguId}, 'revoked', ${ctx.user.id},
+          ${tx.json({ source: 'management_reassignment', prior_lgu_ids: existing, requested_lgu_ids: requested })})`;
+    }
+    await tx`UPDATE users SET lgu_id = ${requested[0]}, updated_at = now() WHERE id = ${id}`;
+    await tx`DELETE FROM sessions WHERE user_id = ${id}`;
+    await audit(tx, {
+      actorId: ctx.user.id, action: 'platform.jurisdictions.update', targetType: 'user', targetId: id,
+      details: { from: existing, to: requested, primary_lgu_id: { from: account.lgu_id, to: requested[0] } }, ip: ctx.ip,
+    });
+    return { changed: true, lgu_ids: requested };
+  });
+  ctx.json(200, result);
+});
+
+platformRoutes.get('/accounts/:id/jurisdiction-history', platformAdmin, async (ctx) => {
+  const id = parseId(ctx.params.id, 'account id');
+  const [account] = await sql`SELECT id FROM users WHERE id = ${id} AND role = 'admin'`;
+  if (!account) throw notFound('Administrator account not found.');
+  const items = await sql`
+    SELECT h.id, h.lgu_id, l.name AS lgu_name, l.jurisdiction_level, h.action,
+           h.changed_at, h.details, u.full_name AS changed_by_name
+    FROM admin_jurisdiction_assignment_history h
+    JOIN lgus l ON l.id = h.lgu_id
+    LEFT JOIN users u ON u.id = h.changed_by
+    WHERE h.user_id = ${id}
+    ORDER BY h.changed_at DESC, h.id DESC LIMIT 100`;
+  ctx.json(200, { items });
+});
+
 platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
   const body = await readJson(ctx, createLguSchema);
   const slug = body.slug || body.name
