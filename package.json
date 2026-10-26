@@ -27,6 +27,7 @@
     "test:e2e:map": "node tests/e2e/vector-map.mjs",
     "test:e2e:google": "node tests/e2e/google-maps.mjs",
     "first-run": "node scripts/first-run.mjs",
-    "create-platform-admin": "npm run create-platform-admin -w server --"
+    "create-platform-admin": "npm run create-platform-admin -w server --",
+    "platform-admin:bootstrap": "npm run platform-admin:bootstrap -w server"
   }
 }
