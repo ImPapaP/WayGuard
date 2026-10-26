@@ -28,14 +28,36 @@ function circlePolygon(lat, lng, radiusM, steps = 64) {
 }
 
 
+function ringArea(ring) {
+  return ring.reduce((sum, point, i) => {
+    const next = ring[(i + 1) % ring.length];
+    return sum + point[0] * next[1] - next[0] * point[1];
+  }, 0) / 2;
+}
 function addJurisdictionLayers(map, boundary) {
   if (!boundary) return;
   const geometry = boundary.type === 'Feature' ? boundary.geometry : boundary;
   if (!geometry || !['Polygon', 'MultiPolygon'].includes(geometry.type)) return;
   const feature = boundary.type === 'Feature' ? boundary : { type: 'Feature', properties: {}, geometry };
-  if (!map.getSource('wg-jurisdiction')) {
-    map.addSource('wg-jurisdiction', { type: 'geojson', data: feature });
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  const world = [[-179.99, -85], [179.99, -85], [179.99, 85], [-179.99, 85], [-179.99, -85]];
+  const holes = polygons.map((rings) => {
+    const ring = rings[0];
+    return ringArea(ring) < 0 ? ring : [...ring].reverse();
+  });
+  if (!map.getSource('wg-outside-mask')) {
+    map.addSource('wg-outside-mask', {
+      type: 'geojson',
+      data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [world, ...holes] } },
+    });
   }
+  if (!map.getLayer('wg-outside-mask-fill')) {
+    map.addLayer({
+      id: 'wg-outside-mask-fill', type: 'fill', source: 'wg-outside-mask',
+      paint: { 'fill-color': '#061429', 'fill-opacity': 0.48 },
+    });
+  }
+  if (!map.getSource('wg-jurisdiction')) map.addSource('wg-jurisdiction', { type: 'geojson', data: feature });
   if (!map.getLayer('wg-jurisdiction-fill')) {
     map.addLayer({
       id: 'wg-jurisdiction-fill', type: 'fill', source: 'wg-jurisdiction',
@@ -49,7 +71,6 @@ function addJurisdictionLayers(map, boundary) {
     });
   }
 }
-
 function el(className, html) {
   const div = document.createElement('div');
   div.className = className;
