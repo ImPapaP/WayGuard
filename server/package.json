@@ -11,7 +11,8 @@
     "seed": "node scripts/seed-demo.js",
     "seed:auto": "node scripts/seed-demo.js --auto",
     "create-admin": "node scripts/create-admin.js",
-    "test": "node --test --test-concurrency=1 \"tests/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"tests/*.test.js\"",
+    "create-platform-admin": "node scripts/create-platform-admin.js"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
