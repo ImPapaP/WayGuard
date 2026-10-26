@@ -207,7 +207,7 @@ reportRoutes.get('/mine', requireRole('citizen'), async (ctx) => {
 reportRoutes.get('/nearby', requireAuth(), async (ctx) => {
   const lat = latitude.parse(ctx.query.lat);
   const lng = longitude.parse(ctx.query.lng);
-  const settings = await getSettings();
+  const settings = await getSettings(sql, ctx.user.lgu_id)
   const radius = Math.min(300, Math.max(settings.duplicate_radius_m, Number(ctx.query.radius) || 100));
   const items = await findDuplicateCandidates(sql, {
     lat,
