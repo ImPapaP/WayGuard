@@ -188,9 +188,12 @@ platformRoutes.put('/accounts/:id/jurisdictions', platformAdmin, async (ctx) => 
     const existing = current.map((row) => row.lgu_id);
     const add = requested.filter((lguId) => !existing.includes(lguId));
     const remove = existing.filter((lguId) => !requested.includes(lguId));
-    const changed = add.length > 0 || remove.length > 0 || account.lgu_id !== requested[0];
+    // Preserve the primary LGU whenever it remains selected. Do not change the
+    // primary implicitly just because the UI lists jurisdiction IDs in sort order.
+    const nextPrimaryLguId = requested.includes(account.lgu_id) ? account.lgu_id : requested[0];
+    const changed = add.length > 0 || remove.length > 0 || account.lgu_id !== nextPrimaryLguId;
     if (!changed) return { changed: false, lgu_ids: requested };
-    if (account.lgu_id !== requested[0]) {
+    if (account.lgu_id !== nextPrimaryLguId) {
       const [{ n }] = await tx`SELECT count(*)::int AS n FROM users
         WHERE id <> ${id} AND role = 'admin' AND is_active AND lgu_id = ${account.lgu_id}`;
       if (n === 0) throw conflict('This is the last active administrator for the current primary LGU. Add another administrator before moving the primary assignment.');
@@ -208,11 +211,11 @@ platformRoutes.put('/accounts/:id/jurisdictions', platformAdmin, async (ctx) => 
         VALUES (${id}, ${lguId}, 'revoked', ${ctx.user.id},
           ${tx.json({ source: 'management_reassignment', prior_lgu_ids: existing, requested_lgu_ids: requested })})`;
     }
-    await tx`UPDATE users SET lgu_id = ${requested[0]}, updated_at = now() WHERE id = ${id}`;
+    await tx`UPDATE users SET lgu_id = ${nextPrimaryLguId}, updated_at = now() WHERE id = ${id}`;
     await tx`DELETE FROM sessions WHERE user_id = ${id}`;
     await audit(tx, {
       actorId: ctx.user.id, action: 'platform.jurisdictions.update', targetType: 'user', targetId: id,
-      details: { from: existing, to: requested, primary_lgu_id: { from: account.lgu_id, to: requested[0] } }, ip: ctx.ip,
+      details: { from: existing, to: requested, primary_lgu_id: { from: account.lgu_id, to: nextPrimaryLguId } }, ip: ctx.ip,
     });
     return { changed: true, lgu_ids: requested };
   });
