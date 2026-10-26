@@ -51,6 +51,8 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
   if (slug.length < 2) throw badRequest('Provide a longer LGU name or an explicit slug.');
+  const [nameExists] = await sql`SELECT 1 FROM lgus WHERE lower(name) = lower(${body.name})`;
+  if (nameExists) throw conflict('An LGU with this name already exists.');
   const [emailExists] = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.admin_email}`;
   if (emailExists) throw conflict('An account with this administrator e-mail already exists.');
   const [slugExists] = await sql`SELECT 1 FROM lgus WHERE slug = ${slug}`;
