@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   province: '',
   map_latitude: '',
   map_longitude: '',
+  jurisdiction_boundary: '',
   admin_name: '',
   admin_email: '',
   admin_phone: '',
@@ -33,6 +34,8 @@ export default function LGUs() {
   const [busy, setBusy] = useState(false);
   const [busyLgu, setBusyLgu] = useState(null);
   const [createdAccount, setCreatedAccount] = useState(null);
+  const [boundaryDrafts, setBoundaryDrafts] = useState({});
+  const [savingBoundary, setSavingBoundary] = useState(null);
 
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -46,6 +49,7 @@ export default function LGUs() {
         ...form,
         slug: form.slug.trim() || undefined,
         admin_phone: form.admin_phone.trim() || null,
+        jurisdiction_boundary: form.jurisdiction_boundary.trim() ? JSON.parse(form.jurisdiction_boundary) : undefined,
       });
       setCreatedAccount({
         lguName: result.lgu.name,
@@ -56,10 +60,22 @@ export default function LGUs() {
       toast(`${result.lgu.name} was created with its own LGU administrator.`);
       reload();
     } catch (err) {
-      setFormError(err);
+      setFormError(err instanceof SyntaxError ? { message: 'Jurisdiction boundary must be valid GeoJSON.' } : err);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function saveBoundary(lgu) {
+    setSavingBoundary(lgu.id);
+    try {
+      const raw = (boundaryDrafts[lgu.id] ?? (lgu.jurisdiction_boundary ? JSON.stringify(lgu.jurisdiction_boundary, null, 2) : '')).trim();
+      await api.patch(`/api/platform/lgus/${lgu.id}`, { jurisdiction_boundary: raw ? JSON.parse(raw) : null });
+      toast(`Jurisdiction boundary saved for ${lgu.name}.`);
+      reload();
+    } catch (err) {
+      toast(err instanceof SyntaxError ? 'Enter valid GeoJSON before saving.' : err.message || 'Could not save the boundary.', { type: 'error' });
+    } finally { setSavingBoundary(null); }
   }
 
   async function toggleLgu(lgu) {
@@ -115,6 +131,7 @@ export default function LGUs() {
               </div>
               <p className="muted small">Enter both coordinates for this LGU's default map centre. You can also set the centre later in System settings.</p>
               <TextField label="Workspace slug" value={form.slug} onChange={set('slug')} error={fieldErrors.slug} placeholder="Optional, e.g. meycauayan" hint="Optional. Used as a stable identifier for this workspace." />
+              <label className="field"><span className="field__label">Jurisdiction boundary (GeoJSON, optional)</span><textarea className="input" rows={5} value={form.jurisdiction_boundary} onChange={set('jurisdiction_boundary')} placeholder="Paste GeoJSON Polygon or MultiPolygon" spellCheck={false} /><span className="field__hint">Use the official municipality boundary. Coordinates must be [longitude, latitude].</span></label>
               <hr />
               <h3>First LGU administrator</h3>
               <TextField label="Administrator full name" value={form.admin_name} onChange={set('admin_name')} error={fieldErrors.admin_name} required />
@@ -162,6 +179,8 @@ export default function LGUs() {
                       <div><strong>{lgu.report_count}</strong><p className="muted small" style={{ margin: 0 }}>Reports</p></div>
                     </div>
                     <p className="muted small">Administrator: {lgu.administrator_name || 'Not assigned'}</p>
+                    <label className="field"><span className="field__label">Jurisdiction boundary</span><textarea className="input" rows={4} spellCheck={false} value={boundaryDrafts[lgu.id] ?? (lgu.jurisdiction_boundary ? JSON.stringify(lgu.jurisdiction_boundary, null, 2) : '')} onChange={(e) => setBoundaryDrafts((old) => ({ ...old, [lgu.id]: e.target.value }))} placeholder="Paste GeoJSON Polygon or MultiPolygon" /><span className="field__hint">{lgu.jurisdiction_boundary ? 'Boundary configured. Empty field removes it.' : 'No boundary configured; location checks are not active until one is saved.'}</span></label>
+                    <Button size="sm" variant="navy" loading={savingBoundary === lgu.id} onClick={() => saveBoundary(lgu)}>Save jurisdiction boundary</Button>
                     <Button size="sm" variant={lgu.is_active ? 'secondary' : 'navy'} loading={busyLgu === lgu.id} onClick={() => toggleLgu(lgu)}>
                       {lgu.is_active ? <><LuCircleX aria-hidden /> Deactivate LGU</> : <><LuCircleCheck aria-hidden /> Reactivate LGU</>}
                     </Button>

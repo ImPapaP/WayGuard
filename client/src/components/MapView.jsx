@@ -88,7 +88,7 @@ export default function MapView(props) {
   const googleFailed = useMapFailed('google');
   const vectorFailed = useMapFailed('vector');
   const provider = __WG_PREVIEW__ ? 'osm' : config?.map?.provider;
-  const settings = config ? { ...config.map, center: config.map_center } : null;
+  const settings = config ? { ...config.map, center: config.map_center, jurisdiction_boundary: config.jurisdiction_boundary } : null;
   if (provider === 'google' && config.map.google_api_key && !googleFailed) {
     return <GoogleMap key={theme} {...props} settings={settings} theme={theme} />;
   }
@@ -144,6 +144,8 @@ function LeafletMap({
   const layer = useRef(null);
   const pickMarker = useRef(null);
   const accuracyCircle = useRef(null);
+  const jurisdictionLayer = useRef(null);
+  const outsideMaskLayer = useRef(null);
   const handlers = useRef({});
   const [tileError, setTileError] = useState(false);
   const [ready, setReady] = useState(false);
@@ -186,7 +188,27 @@ function LeafletMap({
     m._onZoomTransitionEnd = function onZoomTransitionEnd() {
       if (this._mapPane) finishZoom.call(this);
     };
+    const boundary = config.jurisdiction_boundary;
+    if (boundary) {
+      const geometry = boundary.type === 'Feature' ? boundary.geometry : boundary;
+      const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+      const world = [[-85, -179.99], [-85, 179.99], [85, 179.99], [85, -179.99], [-85, -179.99]];
+      const holes = polygons.map((rings) => {
+        const ring = rings[0];
+        const area = ring.reduce((sum, point, i) => { const next = ring[(i + 1) % ring.length]; return sum + point[0] * next[1] - next[0] * point[1]; }, 0);
+        const closed = area < 0 ? ring : [...ring].reverse();
+        return closed.map(([lng, lat]) => [lat, lng]);
+      });
+      outsideMaskLayer.current = L.polygon([world, ...holes], { stroke: false, fillColor: '#061429', fillOpacity: 0.42, interactive: false }).addTo(m);
+    }
     layer.current = L.layerGroup().addTo(m);
+    if (boundary) {
+      const geometry = boundary.type === 'Feature' ? boundary.geometry : boundary;
+      const toLatLngs = (ring) => ring.map(([lng, lat]) => [lat, lng]);
+      const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+      jurisdictionLayer.current = L.polygon(polygons.map((rings) => rings.map(toLatLngs)), { color: '#FAAE0B', weight: 3, opacity: 1, fillColor: '#FAAE0B', fillOpacity: 0.08, interactive: false }).addTo(m);
+      m.fitBounds(jurisdictionLayer.current.getBounds(), { padding: [28, 28], maxZoom: 13, animate: false });
+    }
     map.current = m;
     setReady(true);
     // The container may be resized by layout after mounting.
@@ -205,6 +227,8 @@ function LeafletMap({
       setReady(false);
       pickMarker.current = null;
       accuracyCircle.current = null;
+      jurisdictionLayer.current = null;
+      outsideMaskLayer.current = null;
       meMarker.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

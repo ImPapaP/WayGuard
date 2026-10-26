@@ -12,6 +12,21 @@ import { DEFAULT_SETTINGS } from '../services/settings.js';
 export const platformRoutes = new Router('/api/platform');
 const platformAdmin = requireRole('platform_admin');
 
+function validBoundary(value) {
+  if (value == null) return true;
+  const feature = value.type === 'Feature' ? value.geometry : value;
+  if (!feature || !['Polygon', 'MultiPolygon'].includes(feature.type) || !Array.isArray(feature.coordinates)) return false;
+  const polygons = feature.type === 'Polygon' ? [feature.coordinates] : feature.coordinates;
+  if (!polygons.length) return false;
+  return polygons.every((polygon) => Array.isArray(polygon) && polygon.length > 0 &&
+    polygon.every((ring) => Array.isArray(ring) && ring.length >= 4 &&
+      ring.every((point) => Array.isArray(point) && point.length >= 2 &&
+        Number.isFinite(point[0]) && Number.isFinite(point[1]) &&
+        point[0] >= -180 && point[0] <= 180 && point[1] >= -90 && point[1] <= 90) &&
+      JSON.stringify(ring[0]) === JSON.stringify(ring[ring.length - 1])));
+}
+
+
 const createLguSchema = z.object({
   name: text(2, 120, 'LGU name'),
   slug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letters, numbers and hyphens for the LGU slug.').optional(),
@@ -21,6 +36,8 @@ const createLguSchema = z.object({
     .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_longitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-180).max(180)])
     .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
+  jurisdiction_boundary: z.union([z.record(z.any()), z.null(), z.undefined()]).optional()
+    .refine(validBoundary, 'Enter a valid GeoJSON Polygon or MultiPolygon with closed coordinate rings.'),
   admin_name: text(2, 100, 'Administrator name'),
   admin_email: email,
   admin_phone: phone,
@@ -33,7 +50,7 @@ const createLguSchema = z.object({
 
 platformRoutes.get('/lgus', platformAdmin, async (ctx) => {
   const rows = await sql`
-    SELECT l.id, l.name, l.slug, l.city, l.province, l.is_active, l.created_at,
+    SELECT l.id, l.name, l.slug, l.city, l.province, l.is_active, l.created_at, l.jurisdiction_boundary,
       (SELECT count(*)::int FROM users u WHERE u.lgu_id = l.id AND u.role IN ('admin', 'staff', 'maintenance') AND u.is_active) AS staff_count,
       (SELECT count(*)::int FROM reports r WHERE r.lgu_id = l.id) AS report_count,
       (SELECT u.full_name FROM users u WHERE u.lgu_id = l.id AND u.role = 'admin' ORDER BY u.created_at, u.id LIMIT 1) AS administrator_name
@@ -61,9 +78,9 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
   const passwordHash = await hashPassword(body.temporary_password);
   const created = await sql.begin(async (tx) => {
     const [lgu] = await tx`
-      INSERT INTO lgus (name, slug, city, province)
-      VALUES (${body.name}, ${slug}, ${body.city}, ${body.province})
-      RETURNING id, name, slug, city, province, is_active, created_at`;
+      INSERT INTO lgus (name, slug, city, province, jurisdiction_boundary)
+      VALUES (${body.name}, ${slug}, ${body.city}, ${body.province}, ${body.jurisdiction_boundary ? tx.json(body.jurisdiction_boundary) : null})
+      RETURNING id, name, slug, city, province, is_active, created_at, jurisdiction_boundary`;
 
     // Start from safe defaults, never copy another LGU's map centre or
     // agency ID mappings. Those belong to a specific jurisdiction.
@@ -102,15 +119,21 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
 
 platformRoutes.patch('/lgus/:id', platformAdmin, async (ctx) => {
   const id = parseId(ctx.params.id, 'LGU id');
-  const body = await readJson(ctx, z.object({ is_active: z.boolean() }));
+  const body = await readJson(ctx, z.object({
+    is_active: z.boolean().optional(),
+    jurisdiction_boundary: z.union([z.record(z.any()), z.null()]).optional().refine(validBoundary, 'Enter a valid GeoJSON Polygon or MultiPolygon with closed coordinate rings.'),
+  }).refine((v) => v.is_active !== undefined || v.jurisdiction_boundary !== undefined, 'Nothing to update.'));
   const [lgu] = await sql`
-    UPDATE lgus SET is_active = ${body.is_active}, updated_at = now()
+    UPDATE lgus SET
+      is_active = COALESCE(${body.is_active ?? null}, is_active),
+      jurisdiction_boundary = CASE WHEN ${body.jurisdiction_boundary !== undefined} THEN ${body.jurisdiction_boundary === null ? null : sql.json(body.jurisdiction_boundary)} ELSE jurisdiction_boundary END,
+      updated_at = now()
     WHERE id = ${id}
-    RETURNING id, name, slug, city, province, is_active, created_at`;
+    RETURNING id, name, slug, city, province, is_active, created_at, jurisdiction_boundary`;
   if (!lgu) throw notFound('LGU not found.');
-  if (!body.is_active) {
+  if (body.is_active === false) {
     await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE lgu_id = ${id})`;
   }
-  await audit(sql, { actorId: ctx.user.id, action: 'lgu.update', targetType: 'lgu', targetId: id, details: { is_active: body.is_active }, ip: ctx.ip });
+  await audit(sql, { actorId: ctx.user.id, action: 'lgu.update', targetType: 'lgu', targetId: id, details: { ...(body.is_active !== undefined ? { is_active: body.is_active } : {}), ...(body.jurisdiction_boundary !== undefined ? { jurisdiction_boundary_updated: true } : {}) }, ip: ctx.ip });
   ctx.json(200, { lgu });
 });
