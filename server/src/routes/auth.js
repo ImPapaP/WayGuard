@@ -63,8 +63,13 @@ authRoutes.post('/register', async (ctx) => {
   const existing = await sql`SELECT 1 FROM users WHERE lower(email) = ${body.email}`;
   if (existing.length) throw conflict('An account with this e-mail already exists. Try signing in.');
   const [tenant] = body.lgu_id
-    ? await sql`SELECT id FROM lgus WHERE id = ${body.lgu_id} AND is_active`
-    : await sql`SELECT id FROM lgus WHERE is_active ORDER BY id LIMIT 1`;
+    ? await sql`SELECT id FROM lgus WHERE id = ${body.lgu_id} AND is_active
+      AND ((is_directory_node AND jurisdiction_level IN ('independent_city', 'city', 'municipality'))
+        OR (NOT is_directory_node AND city IS NOT NULL))`
+    : await sql`SELECT id FROM lgus WHERE is_active
+      AND ((is_directory_node AND jurisdiction_level IN ('independent_city', 'city', 'municipality'))
+        OR (NOT is_directory_node AND city IS NOT NULL))
+      ORDER BY name LIMIT 1`;
   if (!tenant) throw new HttpError(400, 'Choose an active LGU to create your account.', undefined, 'invalid_lgu');
   const passwordHash = await hashPassword(body.password);
   // Public registration always creates a citizen account. Staff accounts are
