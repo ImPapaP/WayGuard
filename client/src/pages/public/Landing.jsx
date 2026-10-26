@@ -24,9 +24,9 @@ const ROLE_CARDS = [
   {
     key: 'admin',
     icon: LuLayoutDashboard,
-    title: 'LGU administrators',
-    text: 'Review and verify reports, spot duplicates, assign road crews, confirm repairs and see the statistics.',
-    dest: 'the LGU dashboard',
+    title: 'LGU administrators and staff',
+    text: 'Work on reports for your own city or municipality. Administrators manage staff and teams; staff review reports and track repairs.',
+    dest: 'your LGU workspace',
   },
   {
     key: 'crew',
@@ -52,7 +52,7 @@ export default function Landing() {
           <div className="hero__copy">
             <h1 className="hero__title">Report a pothole. Follow it until the road is fixed.</h1>
             <p className="hero__lead">
-              Send a photo and the exact location to {config?.lgu_name || 'your local government'}. You will be notified as the
+              Send a photo and the exact location to {user?.lgu_name || 'your local government'}. You will be notified as the
               report is reviewed, assigned to a road crew and repaired.
             </p>
             <div className="cluster">
