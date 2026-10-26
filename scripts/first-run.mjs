@@ -103,6 +103,7 @@ async function main() {
 
   // 3. tables and web app
   run(['run', 'db:migrate'], 'create the tables');
+  run(['run', 'psgc:sync'], 'load the official Philippine geographic directory');
   run(['run', 'build'], 'build the web app');
 
   // 4. data and administrator
