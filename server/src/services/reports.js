@@ -81,7 +81,7 @@ export function likelihood(score) {
 }
 
 // Finds open (not rejected/duplicate/resolved) reports near a point.
-export async function findDuplicateCandidates(db, { lat, lng, roadName, barangay, createdAt = null, excludeId = null, radiusM, windowDays, limit = 10 }) {
+export async function findDuplicateCandidates(db, { lat, lng, roadName, barangay, createdAt = null, excludeId = null, radiusM, windowDays, limit = 10, lguId = null }) {
   const { dLat, dLng } = degreeBox(lat, radiusM);
   const rows = await db`
     SELECT * FROM (
@@ -89,7 +89,8 @@ export async function findDuplicateCandidates(db, { lat, lng, roadName, barangay
              r.latitude, r.longitude,
              wg_distance_m(${lat}, ${lng}, r.latitude, r.longitude) AS distance_m
       FROM reports r
-      WHERE r.latitude BETWEEN ${lat - dLat} AND ${lat + dLat}
+      WHERE (${lguId}::int IS NULL OR r.lgu_id = ${lguId})
+        AND r.latitude BETWEEN ${lat - dLat} AND ${lat + dLat}
         AND r.longitude BETWEEN ${lng - dLng} AND ${lng + dLng}
         AND r.status NOT IN ('rejected', 'duplicate', 'resolved')
         AND (${excludeId}::int IS NULL OR r.id <> ${excludeId}::int)
@@ -129,6 +130,9 @@ export async function teamHasAssignment(db, reportId, teamId, { activeOnly = fal
 }
 
 export async function assertCanView(db, user, report) {
+  // Tenant scope is checked before role-specific access. A report ID from
+  // another LGU must never grant access to its details, notes or photos.
+  if (user.role !== 'platform_admin' && user.lgu_id !== report.lgu_id) throw notFound('Report not found.');
   if (user.role === 'admin') return;
   if (user.role === 'citizen' && report.reporter_id === user.id) return;
   if (user.role === 'maintenance' && (await teamHasAssignment(db, report.id, user.team_id))) return;
@@ -190,7 +194,7 @@ export function publicShape(r) {
 export async function getReportDetail(db, id, user) {
   const r = await loadReportRow(db, id);
   await assertCanView(db, user, r);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' && user.lgu_id === r.lgu_id;
   const isStaff = isAdmin || user.role === 'maintenance';
 
   const [agency] = r.agency_id
@@ -260,7 +264,7 @@ export async function getReportDetail(db, id, user) {
       FROM users WHERE id = ${r.reporter_id}`;
     detail.reporter = reporter;
     detail.agency_id = r.agency_id;
-    const settings = await getSettings(db);
+    const settings = await getSettings(db, r.lgu_id);
     detail.duplicate_candidates = await findDuplicateCandidates(db, {
       lat: r.latitude,
       lng: r.longitude,
@@ -270,6 +274,7 @@ export async function getReportDetail(db, id, user) {
       excludeId: r.id,
       radiusM: settings.duplicate_radius_m,
       windowDays: settings.duplicate_window_days,
+      lguId: r.lgu_id,
     });
     detail.duplicates_of_this = await db`
       SELECT id, code, status, created_at FROM reports WHERE duplicate_of_id = ${r.id} ORDER BY created_at`;
@@ -282,8 +287,9 @@ export async function getReportDetail(db, id, user) {
 }
 
 // Admin list filters shared by the reports table, the map and exports.
-export function adminFilters(query) {
+export function adminFilters(query, lguId = null) {
   const conds = [];
+  if (lguId !== null && lguId !== undefined) conds.push(sql`r.lgu_id = ${lguId}`);
   const list = (v, allowed) =>
     String(v || '')
       .split(',')
@@ -321,6 +327,7 @@ export function possibleDuplicatesExpr(radiusM, windowDays) {
   return sql`(
     SELECT count(*)::int FROM reports o
     WHERE o.id <> r.id
+      AND o.lgu_id = r.lgu_id
       AND o.status NOT IN ('rejected', 'duplicate', 'resolved')
       AND o.latitude BETWEEN r.latitude - ${dLat} AND r.latitude + ${dLat}
       AND o.longitude BETWEEN r.longitude - ${dLat} / greatest(0.2, cos(radians(r.latitude)))
