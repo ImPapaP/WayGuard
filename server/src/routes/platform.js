@@ -120,9 +120,14 @@ platformRoutes.get('/accounts', platformAdmin, async (ctx) => {
   const items = await sql`
     SELECT u.id, u.email, u.full_name, u.phone, u.role, u.lgu_id, u.is_active,
            u.last_login_at, u.created_at, l.name AS lgu_name,
-           COALESCE((SELECT array_agg(a.lgu_id ORDER BY a.lgu_id)
-                      FROM admin_jurisdiction_assignments a WHERE a.user_id = u.id),
-                    CASE WHEN u.role = 'admin' AND u.lgu_id IS NOT NULL THEN ARRAY[u.lgu_id]::int[] ELSE ARRAY[]::int[] END) AS jurisdiction_lgu_ids,
+           COALESCE((
+             SELECT array_agg(scope.lgu_id ORDER BY scope.lgu_id)
+             FROM (
+               SELECT a.lgu_id FROM admin_jurisdiction_assignments a WHERE a.user_id = u.id
+               UNION
+               SELECT u.lgu_id WHERE u.role = 'admin' AND u.lgu_id IS NOT NULL
+             ) scope
+           ), ARRAY[]::int[]) AS jurisdiction_lgu_ids,
            COALESCE((SELECT json_agg(json_build_object('id', j.id, 'name', j.name, 'level', j.jurisdiction_level) ORDER BY j.name)
                      FROM admin_jurisdiction_assignments a JOIN lgus j ON j.id = a.lgu_id WHERE a.user_id = u.id), '[]'::json) AS jurisdictions
     FROM users u LEFT JOIN lgus l ON l.id = u.lgu_id
