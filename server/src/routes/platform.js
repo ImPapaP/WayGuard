@@ -12,30 +12,43 @@ import { DEFAULT_SETTINGS } from '../services/settings.js';
 export const platformRoutes = new Router('/api/platform');
 const platformAdmin = requireRole('platform_admin');
 
-const JURISDICTION_ORDER = {
-  island_group: 0,
-  region: 1,
-  province: 2,
-  independent_city: 2,
-  city: 3,
-  municipality: 3,
-  barangay: 4,
+// Allowed parent links mirror the intended Philippine geographic hierarchy.
+// "city" represents a component city; independent cities belong directly to a region.
+const PARENT_LEVELS = {
+  island_group: [],
+  region: ['island_group'],
+  province: ['region'],
+  independent_city: ['region'],
+  city: ['province'],
+  municipality: ['province'],
+  barangay: ['municipality', 'city', 'independent_city'],
 };
 
 function validParentLevel(childLevel, parentLevel) {
-  if (!parentLevel) return childLevel === 'island_group' || childLevel === 'region';
-  const child = JURISDICTION_ORDER[childLevel];
-  const parent = JURISDICTION_ORDER[parentLevel];
-  return Number.isInteger(child) && Number.isInteger(parent) && parent < child;
+  return (PARENT_LEVELS[childLevel] || []).includes(parentLevel);
 }
 
 async function assertValidParent(db, { lguId = null, parentId, level }) {
-  if (parentId == null) return;
+  if (parentId == null) {
+    if (level !== 'island_group') {
+      throw badRequest(
+        level === 'region'
+          ? 'Choose an island group for this region.'
+          : level === 'province' || level === 'independent_city'
+            ? 'Choose a region for this jurisdiction.'
+            : level === 'city' || level === 'municipality'
+              ? 'Choose a province for this jurisdiction.'
+              : 'Choose a municipality, city, or independent city for this barangay.',
+      );
+    }
+    return;
+  }
   if (lguId != null && Number(parentId) === Number(lguId)) throw badRequest('A jurisdiction cannot be its own parent.');
   const [parent] = await db`SELECT id, jurisdiction_level FROM lgus WHERE id = ${parentId}`;
   if (!parent) throw badRequest('Choose an existing parent jurisdiction.');
   if (!validParentLevel(level, parent.jurisdiction_level)) {
-    throw badRequest('The parent jurisdiction must be higher in the geographic hierarchy.');
+    const expected = (PARENT_LEVELS[level] || []).map((item) => item.replaceAll('_', ' ')).join(' or ');
+    throw badRequest(`The parent for this ${level.replaceAll('_', ' ')} must be ${expected || 'none'}.`);
   }
   if (lguId != null) {
     const [cycle] = await db`
@@ -67,8 +80,8 @@ function validBoundary(value) {
 const createLguSchema = z.object({
   name: text(2, 120, 'LGU name'),
   slug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letters, numbers and hyphens for the LGU slug.').optional(),
-  city: text(2, 100, 'City / municipality'),
-  province: text(2, 100, 'Province'),
+  city: z.string().trim().max(100).optional().nullable().transform((value) => value || null),
+  province: z.string().trim().max(100).optional().nullable().transform((value) => value || null),
   jurisdiction_level: z.enum(['island_group', 'region', 'province', 'independent_city', 'city', 'municipality', 'barangay']).default('municipality'),
   parent_lgu_id: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().int().positive()]).transform((v) => (v === '' || v === null || v === undefined ? null : v)),
   map_latitude: z.union([z.literal(''), z.null(), z.undefined(), z.coerce.number().min(-90).max(90)])
