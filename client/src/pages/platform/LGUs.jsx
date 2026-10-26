@@ -69,7 +69,7 @@ export default function LGUs() {
       toast(`${lgu.name} is now ${lgu.is_active ? 'inactive' : 'active'}.`);
       reload();
     } catch (err) {
-      toast(err.message || 'Could not update the LGU.', 'error');
+      toast(err.message || 'Could not update the LGU.', { type: 'error' });
     } finally {
       setBusyLgu(null);
     }
