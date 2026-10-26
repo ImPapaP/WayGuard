@@ -121,13 +121,15 @@ The service start command applies the database migrations and synchronizes the o
 
 The bundled geographic snapshot is derived from the Philippine Statistics Authority's [PSGC publication](https://psa.gov.ph/classification/psgc), dated 30 June 2026 (Q2 2026), and checked against the [Q3 2026 release](https://psa.gov.ph/classification/psgc/node/1684084314), dated 30 September 2026. The Q3 release's recorded change affects a barangay name; the regions, provinces, cities and municipalities used by this hierarchy were unchanged. Island groups (Luzon, Visayas and Mindanao) are grouping nodes in WayGuard rather than official PSGC administrative levels. To synchronize the bundled snapshot manually against your configured database, run `npm run psgc:sync`.
 
-After the first deployment, create a separate platform administrator once. In a terminal or Render Shell connected to the **same production database**, run:
+After deployment, create a separate platform administrator. **You can do this without a terminal:** in Render → your WayGuard service → **Environment**, add these three variables with your own values:
 
-```bash
-npm run create-platform-admin
-```
+- `PLATFORM_ADMIN_EMAIL` — the email you want to use to sign in
+- `PLATFORM_ADMIN_NAME` — your name
+- `PLATFORM_ADMIN_PASSWORD` — a strong temporary password (at least 8 characters with a letter and a number)
 
-Choose a unique platform-admin e-mail and a strong password. Do not use the ordinary `create-admin` command for this step; that creates an administrator inside a local LGU. Sign in using the platform administrator and open `/platform/lgus` to see the full hierarchy:
+Save the environment changes and trigger a deploy/restart. The startup bootstrap creates the account only if the email is not already in use, sets it to change its password at first sign-in, and never prints the password to logs. If the email already belongs to a non-platform account, startup stops with an error rather than promoting it. If all three variables are absent, the bootstrap is skipped. After the first successful creation, remove `PLATFORM_ADMIN_PASSWORD` from Render Environment; keep the email/name variables only if desired. Do not put the password in source code or commit it to GitHub.
+
+Alternatively, in a terminal or Render Shell connected to the **same production database**, run `npm run create-platform-admin` and answer the prompts. Do not use the ordinary `create-admin` command for this step; that creates an administrator inside a local LGU. Sign in using the platform administrator and open `/platform/lgus` to see the full hierarchy:
 
 `Island Group → Region → Province / Independent City → Municipality / Component City`
 
