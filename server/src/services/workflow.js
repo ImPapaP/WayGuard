@@ -108,7 +108,7 @@ export function verifyReport(reportId, user, { severity, agencyId, note }) {
     }
     if (agencyId !== undefined && agencyId !== report.agency_id) {
       if (agencyId !== null) {
-        const [a] = await tx`SELECT id, name FROM agencies WHERE id = ${agencyId} AND is_active`;
+        const [a] = await tx`SELECT id, name FROM agencies WHERE id = ${agencyId} AND lgu_id = ${report.lgu_id} AND is_active`;
         if (!a) throw badRequest('Choose an active responsible agency.');
         await recordEvent(tx, {
           reportId: report.id,
@@ -141,7 +141,7 @@ export function markDuplicate(reportId, user, { duplicateOfId, note }) {
   return withReport(reportId, async (tx, report) => {
     assertTransition(report, 'duplicate', user);
     if (duplicateOfId === report.id) throw badRequest('A report cannot be a duplicate of itself.');
-    const [original] = await tx`SELECT id, code, status, duplicate_of_id FROM reports WHERE id = ${duplicateOfId}`;
+    const [original] = await tx`SELECT id, code, status, duplicate_of_id FROM reports WHERE id = ${duplicateOfId} AND lgu_id = ${report.lgu_id}`;
     if (!original) throw badRequest('The original report was not found.');
     if (['duplicate', 'rejected'].includes(original.status)) {
       throw badRequest(`${original.code} is itself ${STATUS_LABELS[original.status].toLowerCase()}; choose the report that is being tracked.`);
@@ -166,7 +166,7 @@ export function markDuplicate(reportId, user, { duplicateOfId, note }) {
 
 export function assignReport(reportId, user, { teamId, instructions, dueDate }) {
   return withReport(reportId, async (tx, report) => {
-    const [team] = await tx`SELECT id, name FROM maintenance_teams WHERE id = ${teamId} AND is_active`;
+    const [team] = await tx`SELECT id, name FROM maintenance_teams WHERE id = ${teamId} AND lgu_id = ${report.lgu_id} AND is_active`;
     if (!team) throw badRequest('Choose an active maintenance team.');
     const [current] = await tx`SELECT id, team_id FROM assignments WHERE report_id = ${report.id} AND is_active`;
     const reassigning = Boolean(current);
@@ -360,7 +360,7 @@ export function addRepairUpdate(reportId, user, { type, note, photos }) {
         meta: { repair_update_id: update.id },
       });
       await notifyUsers(tx, {
-        userIds: await adminIds(tx),
+        userIds: await adminIds(tx, report.lgu_id),
         reportId: report.id,
         type: 'completion_submitted',
         title: `${report.code}: repair ready for verification`,
