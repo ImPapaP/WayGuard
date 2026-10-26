@@ -5,7 +5,7 @@
     "sourceSnapshot": "2026-06-30",
     "checkedAgainstRelease": "2026-09-30",
     "checkedNote": "PSA's Q3 2026 notice records a barangay-name correction only; these region/province/city/municipality entries are unchanged. Island groups are geographic grouping nodes added for WayGuard.",
-    "sourceMirror": "@chikolokoy08/ph-toolkit data/psgc, derived from PSA's published PSGC Datafile; upstream license MIT; PSA site license CC BY 4.0.",
+    "sourceMirror": "@chikolokoy08/ph-toolkit data/psgc, extracted from the PSA-published PSGC Datafile; the PSA PSGC site and Q3 2026 release are linked above.",
     "recordCounts": {
       "island_group": 3,
       "region": 18,
