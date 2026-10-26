@@ -196,6 +196,22 @@ async function removeDemoData(sql) {
        OR EXISTS (SELECT 1 FROM report_photos p WHERE p.report_id = r.id AND p.uploaded_by IN (${demoUsers}))`;
   const photos = await sql`SELECT storage_key FROM report_photos WHERE report_id IN (${touched})`;
   await sql.begin(async (tx) => {
+    // The multi-LGU schema keeps duplicate links inside a tenant and uses
+    // RESTRICT on deletion. Clear links to demo reports before removing them.
+    const demoReportIds = tx`
+      SELECT r.id FROM reports r
+      WHERE r.is_demo
+         OR r.reporter_id IN (SELECT id FROM users WHERE email LIKE ${'%@' + DEMO_DOMAIN})
+         OR EXISTS (SELECT 1 FROM assignments a JOIN users u ON u.id = a.assigned_by WHERE a.report_id = r.id AND u.email LIKE ${'%@' + DEMO_DOMAIN})
+         OR EXISTS (SELECT 1 FROM repair_updates ru JOIN users u ON u.id = ru.author_id WHERE ru.report_id = r.id AND u.email LIKE ${'%@' + DEMO_DOMAIN})
+         OR EXISTS (SELECT 1 FROM report_photos p JOIN users u ON u.id = p.uploaded_by WHERE p.report_id = r.id AND u.email LIKE ${'%@' + DEMO_DOMAIN})`;
+    await tx`
+      UPDATE reports r
+      SET duplicate_of_id = NULL,
+          status = CASE WHEN r.status = 'duplicate' THEN 'under_review' ELSE r.status END,
+          updated_at = now()
+      WHERE r.id IN (${demoReportIds})
+         OR r.duplicate_of_id IN (${demoReportIds})`;
     await tx`DELETE FROM reports WHERE id IN (
       SELECT r.id FROM reports r
       WHERE r.is_demo
