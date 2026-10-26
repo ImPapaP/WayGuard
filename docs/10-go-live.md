@@ -115,6 +115,20 @@ is needed for any of them.
    position; **Teams and agencies** — add your road crews and offices;
    **Users** — create staff accounts. Citizens register themselves.
 
+### Adding multiple LGUs
+
+The service start command automatically applies the database migrations, including the multi-LGU schema. Existing data is retained and attached to the initial LGU.
+
+After the first deployment, create a separate platform administrator once. In a terminal or Render Shell connected to the **same production database**, run:
+
+```bash
+npm run create-platform-admin
+```
+
+Choose a unique platform-admin e-mail and a strong password. Do not use the ordinary `create-admin` command for this step; that creates an administrator inside the default LGU. Sign in using the platform administrator and open `/platform/lgus`. Create each city/municipality and its first LGU administrator there. The new LGU administrator can then create staff and maintenance crew accounts within that LGU. Staff can process reports but cannot manage users, teams, agencies or system settings.
+
+Use optional map latitude/longitude when adding an LGU, or set its centre later in that LGU's **System settings**. Reports currently belong to the LGU selected when a citizen registers. Automatic jurisdiction matching or a hard geographic boundary check on the report GPS is not included in this change.
+
 Open the address on a phone (Chrome or Safari): GPS, the camera and drive
 mode work because the site is `https://`. Use **Add to Home screen** to
 install it like an app.
