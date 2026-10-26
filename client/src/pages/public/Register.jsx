@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { LuEye, LuEyeOff } from 'react-icons/lu';
 import { Link, Navigate, useLocation, useNavigate } from '../../lib/router.jsx';
 import { useAuth } from '../../lib/auth.jsx';
@@ -30,12 +30,6 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-
-  useEffect(() => {
-    if (!form.lgu_id && config?.lgus?.length) {
-      setForm((current) => ({ ...current, lgu_id: String(config.lgus[0].id) }));
-    }
-  }, [config, form.lgu_id]);
 
   if (user) return <Navigate to={safeNext(query.next, user.role)} />;
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
