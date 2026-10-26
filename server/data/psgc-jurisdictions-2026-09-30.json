@@ -2,18 +2,18 @@
   "metadata": {
     "source": "Philippine Statistics Authority, Philippine Standard Geographic Code (PSGC)",
     "officialUrl": "https://psa.gov.ph/classification/psgc",
-    "publishedSnapshot": "2026-06-30",
+    "sourceSnapshot": "2026-06-30",
     "checkedAgainstRelease": "2026-09-30",
-    "checkedNote": "PSA's Q3 2026 update corrected a barangay name only; region, province, city and municipality hierarchy was unchanged.",
-    "sourceMirror": "@chikolokoy08/ph-toolkit data/psgc, derived from the PSA PSGC Publication Datafile; no runtime dependency.",
+    "checkedNote": "PSA's Q3 2026 notice records a barangay-name correction only; these region/province/city/municipality entries are unchanged. Island groups are geographic grouping nodes added for WayGuard.",
+    "sourceMirror": "@chikolokoy08/ph-toolkit data/psgc, derived from PSA's published PSGC Datafile; upstream license MIT; PSA site license CC BY 4.0.",
     "recordCounts": {
       "island_group": 3,
       "region": 18,
       "province": 82,
-      "special_area": 1,
-      "independent_city": 34,
+      "special_area": 2,
+      "independent_city": 38,
       "municipality": 1493,
-      "city": 115
+      "city": 111
     }
   },
   "nodes": [
@@ -952,6 +952,15 @@
       "city": null,
       "province": null,
       "slug": "special-geographic-area-1999900000"
+    },
+    {
+      "code": "0990100000",
+      "name": "City of Isabela (Not a Province)",
+      "level": "special_area",
+      "parent_code": "0900000000",
+      "city": null,
+      "province": null,
+      "slug": "city-of-isabela-not-a-province-0990100000"
     },
     {
       "code": "1380100000",
@@ -2648,10 +2657,10 @@
     {
       "code": "0105518000",
       "name": "City of Dagupan",
-      "level": "city",
-      "parent_code": "0105500000",
+      "level": "independent_city",
+      "parent_code": "0100000000",
       "city": "City of Dagupan",
-      "province": "Pangasinan",
+      "province": null,
       "slug": "city-of-dagupan-0105518000"
     },
     {
@@ -3548,10 +3557,10 @@
     {
       "code": "0203135000",
       "name": "City of Santiago",
-      "level": "city",
-      "parent_code": "0203100000",
+      "level": "independent_city",
+      "parent_code": "0200000000",
       "city": "City of Santiago",
-      "province": "Isabela",
+      "province": null,
       "slug": "city-of-santiago-0203135000"
     },
     {
@@ -7346,10 +7355,10 @@
     {
       "code": "0501724000",
       "name": "City of Naga",
-      "level": "city",
-      "parent_code": "0501700000",
+      "level": "independent_city",
+      "parent_code": "0500000000",
       "city": "City of Naga",
-      "province": "Camarines Sur",
+      "province": null,
       "slug": "city-of-naga-0501724000"
     },
     {
@@ -10748,10 +10757,10 @@
     {
       "code": "0803738000",
       "name": "Ormoc City",
-      "level": "city",
-      "parent_code": "0803700000",
+      "level": "independent_city",
+      "parent_code": "0800000000",
       "city": "Ormoc City",
-      "province": "Leyte",
+      "province": null,
       "slug": "ormoc-city-0803738000"
     },
     {
@@ -12368,8 +12377,8 @@
     {
       "code": "0990101000",
       "name": "City of Isabela",
-      "level": "independent_city",
-      "parent_code": "0900000000",
+      "level": "city",
+      "parent_code": "0990100000",
       "city": "City of Isabela",
       "province": null,
       "slug": "city-of-isabela-0990101000"
@@ -15347,10 +15356,10 @@
     {
       "code": "1908703000",
       "name": "City of Cotabato",
-      "level": "city",
-      "parent_code": "1908700000",
+      "level": "independent_city",
+      "parent_code": "1900000000",
       "city": "City of Cotabato",
-      "province": "Maguindanao del Norte",
+      "province": null,
       "slug": "city-of-cotabato-1908703000"
     },
     {
