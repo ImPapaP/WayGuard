@@ -49,9 +49,9 @@ export async function destroyUserSessions(userId, exceptSessionId = null, db = s
 // Column list shared by every query that loads a user (alias u = users,
 // t = maintenance_teams). Returned as a fresh fragment for each query.
 export const userColumns = () => sql`
-  u.id, u.email, u.full_name, u.phone, u.role, u.team_id, u.is_active,
+  u.id, u.email, u.full_name, u.phone, u.role, u.lgu_id, u.team_id, u.is_active,
   u.email_notifications, u.must_change_password, u.last_login_at, u.created_at,
-  t.name AS team_name`;
+  t.name AS team_name, l.name AS lgu_name, l.slug AS lgu_slug`;
 
 // Middleware: attaches ctx.user / ctx.session when a valid cookie is present.
 export function loadSession() {
@@ -63,8 +63,10 @@ export function loadSession() {
         SELECT s.id AS session_id, s.last_seen_at, ${userColumns()}
         FROM sessions s
         JOIN users u ON u.id = s.user_id
-        LEFT JOIN maintenance_teams t ON t.id = u.team_id
-        WHERE s.id = ${id} AND s.expires_at > now() AND u.is_active`;
+        LEFT JOIN maintenance_teams t ON t.id = u.team_id AND t.lgu_id = u.lgu_id
+        LEFT JOIN lgus l ON l.id = u.lgu_id
+        WHERE s.id = ${id} AND s.expires_at > now() AND u.is_active
+          AND (u.role = 'platform_admin' OR l.is_active)`;
       if (rows.length) {
         const { session_id, last_seen_at, ...user } = rows[0];
         ctx.user = user;
@@ -96,6 +98,9 @@ export function publicUser(user) {
     full_name: user.full_name,
     phone: user.phone,
     role: user.role,
+    lgu_id: user.lgu_id ?? null,
+    lgu_name: user.lgu_name || null,
+    lgu_slug: user.lgu_slug || null,
     team_id: user.team_id,
     team_name: user.team_name || null,
     email_notifications: user.email_notifications,
