@@ -206,4 +206,12 @@ test('regional administrator scopes reports, maps, exports, teams and users to a
   const history = await platform.get('/api/platform/accounts/' + regionalUser.id + '/jurisdiction-history');
   assert.equal(history.status, 200);
   assert.ok(history.data.items.some((row) => row.action === 'assigned' && row.lgu_id === region.id));
+
+  const demotedSession = await login(server.base, regionalUser);
+  const demotion = await platform.patch('/api/platform/accounts/' + regionalUser.id, { role: 'staff' });
+  assert.equal(demotion.status, 200, JSON.stringify(demotion.data));
+  assert.equal((await demotedSession.get('/api/notifications')).status, 401, 'role changes should revoke sessions too');
+  const postDemotionHistory = await platform.get('/api/platform/accounts/' + regionalUser.id + '/jurisdiction-history');
+  assert.equal(postDemotionHistory.status, 200, 'history remains visible after an administrator is demoted');
+  assert.ok(postDemotionHistory.data.items.some((row) => row.action === 'revoked' && row.lgu_id === region.id));
 });
