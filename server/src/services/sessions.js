@@ -69,6 +69,37 @@ export function loadSession() {
           AND (u.role = 'platform_admin' OR l.is_active)`;
       if (rows.length) {
         const { session_id, last_seen_at, ...user } = rows[0];
+        // Resolve delegated jurisdictions from the database on every request.
+        // Session claims are deliberately not used for authorization, so a
+        // reassignment takes effect immediately even before the cookie expires.
+        if (user.role === 'admin') {
+          let scopes = await sql`
+            WITH RECURSIVE accessible(id) AS (
+              SELECT a.lgu_id
+              FROM admin_jurisdiction_assignments a
+              WHERE a.user_id = ${user.id}
+              UNION
+              SELECT child.id
+              FROM lgus child
+              JOIN accessible parent ON child.parent_lgu_id = parent.id
+            )
+            SELECT DISTINCT id FROM accessible ORDER BY id`;
+          // Compatibility fallback for accounts created before assignments
+          // were available, or test fixtures that create users directly.
+          if (!scopes.length && user.lgu_id != null) {
+            scopes = await sql`
+              WITH RECURSIVE accessible(id) AS (
+                SELECT id FROM lgus WHERE id = ${user.lgu_id}
+                UNION
+                SELECT child.id FROM lgus child
+                JOIN accessible parent ON child.parent_lgu_id = parent.id
+              )
+              SELECT DISTINCT id FROM accessible ORDER BY id`;
+          }
+          user.accessible_lgu_ids = scopes.map((row) => row.id);
+        } else {
+          user.accessible_lgu_ids = user.lgu_id == null ? [] : [user.lgu_id];
+        }
         ctx.user = user;
         ctx.session = { id: session_id };
         // Sliding expiry, written at most every 10 minutes.
