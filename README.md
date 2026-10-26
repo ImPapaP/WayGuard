@@ -14,7 +14,9 @@ notified at each step.
 | Who | Where | What they can do |
 | --- | --- | --- |
 | Citizen / reporter | `/app` (installable mobile web app) | Register, report potholes (photo, GPS or map pin or address, description, severity), track "My reports" on a progress road and timeline, receive notifications, view the public map, rate completed repairs |
-| Administrator / LGU personnel | `/admin` | Dashboard and statistics, searchable/filterable reports table, interactive map, review/verify/reject/flag duplicates, set severity and responsible agency, assign and reassign teams, verify completed repairs, manage users, teams, agencies and settings, CSV/PDF exports and a summary report, activity log |
+| LGU administrator | `/admin` | Manage staff and crews, teams, agencies and LGU settings; full report workflow, statistics, map, exports and activity log |
+| LGU staff | `/admin` | Process reports for their assigned LGU, review and verify reports, assign repairs, view the LGU map and export tenant-scoped reports |
+| Platform administrator | `/platform/lgus` | Create and deactivate LGU workspaces and appoint each LGU's first administrator |
 | Road maintenance personnel | `/crew` (mobile web app) | View assigned tasks with location, directions link and instructions, start work, post progress updates with before/progress photos, submit completion with after photos for LGU verification |
 | Public | `/`, `/map` | See verified potholes and repairs on an OpenStreetMap map (no personal data) |
 
@@ -136,8 +138,21 @@ administrator password anywhere in Wayguard):
 npm run create-admin
 ```
 
-The administrator then creates other staff accounts under **Users**. Citizens
-register themselves at `/register`.
+The administrator then creates accounts under **Users**. Accounts created by an LGU administrator automatically belong to that LGU; maintenance personnel must be assigned to one of that LGU's teams. Regular LGU staff can process reports but cannot manage users, teams, agencies or settings. Citizens select their LGU when registering at `/register`.
+
+### Multi-LGU setup
+
+The multi-LGU migration creates a default LGU and attaches existing users, reports, teams, agencies, settings and historical records to it. Render's configured start command applies database migrations automatically on the next deploy.
+
+To provision additional cities or municipalities, bootstrap a separate platform administrator once, then sign in and open **LGU management** at `/platform/lgus`. For local development, run:
+
+```bash
+npm run create-platform-admin
+```
+
+Use a unique e-mail address and a strong password. This platform administrator creates each LGU and its first LGU administrator. The LGU administrator then creates that jurisdiction's staff and maintenance crews under **Users**. Do not share the platform administrator account with LGU personnel.
+
+Tenant restrictions are enforced by the backend and database constraints, not only by the interface. LGU staff and administrators can access only their LGU's private reports, assignments, maps, statistics, photos, notifications, settings and exports; the public map remains public-safe and may show verified reports across LGUs.
 
 ## 6. Run
 
