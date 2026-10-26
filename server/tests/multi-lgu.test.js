@@ -62,6 +62,44 @@ test('official PSGC directory sync creates the full hierarchy and is repeatable'
   assert.equal(firstSync.matched, 1747);
 });
 
+test('platform administrators can create an account at a selected PSGC area with descendant-only access', async () => {
+  const sql = getSql();
+  const [bulacan] = await sql`SELECT id FROM lgus WHERE psgc_code = '0301400000'`;
+  const [malolos] = await sql`SELECT id FROM lgus WHERE name = 'City of Malolos' AND is_directory_node`;
+  const [pampanga] = await sql`SELECT id FROM lgus WHERE psgc_code = '0305400000'`;
+  assert.ok(bulacan && malolos && pampanga, 'the selected province and its localities should exist in PSGC');
+
+  const created = await platform.post('/api/platform/accounts', {
+    full_name: 'Bulacan Area Administrator',
+    email: 'bulacan.area.admin@example.test',
+    phone: null,
+    lgu_id: bulacan.id,
+    temporary_password: 'StartAdmin123',
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  assert.equal(created.data.account.role, 'admin');
+  assert.equal(created.data.account.lgu_id, bulacan.id);
+  assert.equal(created.data.account.must_change_password, true);
+  assert.equal(created.data.jurisdiction.id, bulacan.id);
+
+  const [assignment] = await sql`SELECT lgu_id FROM admin_jurisdiction_assignments WHERE user_id = ${created.data.account.id}`;
+  assert.equal(assignment.lgu_id, bulacan.id);
+  const history = await platform.get('/api/platform/accounts/' + created.data.account.id + '/jurisdiction-history');
+  assert.equal(history.status, 200);
+  assert.ok(history.data.items.some((item) => item.action === 'assigned' && item.lgu_id === bulacan.id));
+
+  const areaAdmin = await login(server.base, { email: 'bulacan.area.admin@example.test', password: 'StartAdmin123' });
+  const changed = await areaAdmin.post('/api/auth/change-password', {
+    current_password: 'StartAdmin123', new_password: 'Welcome2026',
+  });
+  assert.equal(changed.status, 200, JSON.stringify(changed.data));
+  const scope = await areaAdmin.get('/api/admin/jurisdictions');
+  assert.equal(scope.status, 200, JSON.stringify(scope.data));
+  assert.ok(scope.data.items.some((item) => item.id === bulacan.id));
+  assert.ok(scope.data.items.some((item) => item.id === malolos.id), 'province assignment includes descendant cities');
+  assert.ok(!scope.data.items.some((item) => item.id === pampanga.id), 'province assignment excludes sibling provinces');
+});
+
 test('platform admins provision an LGU and its first administrator', async () => {
   const blocked = await defaultAdmin.get('/api/platform/lgus');
   assert.equal(blocked.status, 403, 'an LGU admin cannot manage platform tenants');
