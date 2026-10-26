@@ -455,6 +455,9 @@ adminRoutes.post('/teams', admin, async (ctx) => {
 adminRoutes.patch('/teams/:id', admin, async (ctx) => {
   const id = parseId(ctx.params.id, 'team id');
   const b = await readJson(ctx, teamSchema.partial().omit({ lgu_id: true }));
+  const scope = ctx.user.accessible_lgu_ids || [ctx.user.lgu_id];
+  const [team] = await sql`SELECT id, lgu_id FROM maintenance_teams WHERE id = ${id} AND lgu_id = ANY(${scope})`;
+  if (!team) throw notFound('Team not found.');
   if (b.is_active === false) {
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM assignments WHERE team_id = ${id} AND is_active`;
     if (n > 0) throw conflict(`This team still has ${n} active task(s). Reassign them first.`);
@@ -462,10 +465,10 @@ adminRoutes.patch('/teams/:id', admin, async (ctx) => {
   const changes = Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined));
   if (!Object.keys(changes).length) throw badRequest('Nothing to update.');
   if (b.agency_id) {
-    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])})`;
-    if (!agency) throw badRequest('Choose an agency from your LGU.');
+    const [agency] = await sql`SELECT id FROM agencies WHERE id = ${b.agency_id} AND lgu_id = ${team.lgu_id} AND is_active`;
+    if (!agency) throw badRequest('Choose an active agency from the team\'s jurisdiction.');
   }
-  const rows = await sql`UPDATE maintenance_teams SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ANY(${(ctx.user.accessible_lgu_ids || [ctx.user.lgu_id])}) RETURNING id`;
+  const rows = await sql`UPDATE maintenance_teams SET ${sql(changes)} WHERE id = ${id} AND lgu_id = ANY(${scope}) RETURNING id`;
   if (!rows.length) throw notFound('Team not found.');
   await audit(sql, { actorId: ctx.user.id, action: 'team.update', targetType: 'team', targetId: id, details: changes, ip: ctx.ip });
   ctx.json(200, { ok: true });
