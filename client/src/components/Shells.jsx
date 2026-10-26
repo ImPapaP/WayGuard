@@ -316,6 +316,7 @@ export function AppShell({ kind = 'citizen', children }) {
 
 // ---------------------------------------------------------------- administrator
 function AdminNav({ counts, unread, onNavigate }) {
+  const { user } = useAuth();
   const items = [
     { to: '/admin', label: 'Dashboard', icon: LuLayoutDashboard, end: true },
     { to: '/admin/reports', label: 'Reports', icon: LuClipboardList, count: counts?.pending_review },
@@ -340,12 +341,16 @@ function AdminNav({ counts, unread, onNavigate }) {
       <nav className="sidebar__nav" aria-label="Workspace">
         {items.map(render)}
       </nav>
-      <div className="sidebar__group" id="manage-label">
-        Management
-      </div>
-      <nav className="sidebar__nav" aria-labelledby="manage-label">
-        {manage.map(render)}
-      </nav>
+      {user?.role === 'admin' && (
+        <>
+          <div className="sidebar__group" id="manage-label">
+            Management
+          </div>
+          <nav className="sidebar__nav" aria-labelledby="manage-label">
+            {manage.map(render)}
+          </nav>
+        </>
+      )}
     </>
   );
 }
@@ -367,7 +372,7 @@ function Sidebar({ counts, unread, onNavigate }) {
           </span>
           <span>
             {user?.full_name}
-            <small>LGU administrator</small>
+            <small>{user?.role === 'staff' ? 'LGU staff' : 'LGU administrator'}</small>
           </span>
         </div>
         <nav className="sidebar__nav" aria-label="Account">
