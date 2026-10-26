@@ -80,7 +80,7 @@ export const reportRoutes = new Router('/api/reports');
 // Submit a new pothole report (multipart form with photos).
 reportRoutes.post('/', requireRole('citizen'), async (ctx) => {
   submitLimiter.consume(`user:${ctx.user.id}`, ctx);
-  const settings = await getSettings();
+  const settings = await getSettings(sql, ctx.user.lgu_id);
   const { fields, files } = await readMultipart(ctx, {
     limit: settings.max_photos_per_report * (config.maxPhotoBytes + 64 * 1024) + 256 * 1024,
   });
@@ -90,7 +90,7 @@ reportRoutes.post('/', requireRole('citizen'), async (ctx) => {
   // Prevent the same person from filing the same pothole twice.
   const [recent] = await sql`
     SELECT code FROM reports
-    WHERE reporter_id = ${ctx.user.id}
+    WHERE reporter_id = ${ctx.user.id} AND lgu_id = ${ctx.user.lgu_id}
       AND status = ANY(${OPEN_STATUSES})
       AND created_at > now() - interval '24 hours'
       AND wg_distance_m(${data.latitude}, ${data.longitude}, latitude, longitude) <= 25
@@ -107,12 +107,12 @@ reportRoutes.post('/', requireRole('citizen'), async (ctx) => {
     const result = await sql.begin(async (tx) => {
       const code = await nextReportCode(tx);
       const agencyId = settings.road_type_agency?.[data.road_type] ?? null;
-      const [agency] = agencyId ? await tx`SELECT id FROM agencies WHERE id = ${agencyId} AND is_active` : [];
+      const [agency] = agencyId ? await tx`SELECT id FROM agencies WHERE id = ${agencyId} AND lgu_id = ${ctx.user.lgu_id} AND is_active` : [];
       const [report] = await tx`
-        INSERT INTO reports (code, reporter_id, description, road_name, barangay, city, landmark, hazards,
+        INSERT INTO reports (lgu_id, code, reporter_id, description, road_name, barangay, city, landmark, hazards,
                              road_type, reported_severity, severity, latitude, longitude, location_source,
                              location_accuracy_m, agency_id)
-        VALUES (${code}, ${ctx.user.id}, ${data.description}, ${data.road_name}, ${data.barangay}, ${data.city},
+        VALUES (${ctx.user.lgu_id}, ${code}, ${ctx.user.id}, ${data.description}, ${data.road_name}, ${data.barangay}, ${data.city},
                 ${data.landmark}, ${data.hazards}, ${data.road_type}, ${data.severity}, ${data.severity},
                 ${data.latitude}, ${data.longitude}, ${data.location_source}, ${data.location_accuracy_m},
                 ${agency ? agency.id : null})
@@ -139,6 +139,7 @@ reportRoutes.post('/', requireRole('citizen'), async (ctx) => {
         excludeId: report.id,
         radiusM: settings.duplicate_radius_m,
         windowDays: settings.duplicate_window_days,
+        lguId: ctx.user.lgu_id,
       });
       if (candidates.length) {
         await recordEvent(tx, {
@@ -153,7 +154,7 @@ reportRoutes.post('/', requireRole('citizen'), async (ctx) => {
         });
       }
       await notifyUsers(tx, {
-        userIds: await adminIds(tx),
+        userIds: await adminIds(tx, ctx.user.lgu_id),
         reportId: report.id,
         type: 'report_submitted',
         title: `New report ${code}`,
@@ -215,6 +216,7 @@ reportRoutes.get('/nearby', requireAuth(), async (ctx) => {
     barangay: null,
     radiusM: radius,
     windowDays: settings.duplicate_window_days,
+    lguId: ctx.user.lgu_id,
   });
   ctx.json(200, {
     radius_m: radius,
