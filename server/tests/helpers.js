@@ -98,14 +98,21 @@ export class Client {
 }
 
 let userCounter = 0;
-export async function createUser({ role = 'citizen', teamId = null, password = 'Password123', mustChange = false, name } = {}) {
+export async function createUser({
+  role = 'citizen',
+  lguId = role === 'platform_admin' ? null : 1,
+  teamId = null,
+  password = 'Password123',
+  mustChange = false,
+  name,
+} = {}) {
   userCounter += 1;
   const email = `${role}${userCounter}-${Date.now()}@example.test`;
   const hash = await hashPassword(password);
   const [u] = await getSql()`
-    INSERT INTO users (email, password_hash, full_name, role, team_id, must_change_password)
-    VALUES (${email}, ${hash}, ${name || `Test ${role} ${userCounter}`}, ${role}, ${teamId}, ${mustChange})
-    RETURNING id, email, role, team_id`;
+    INSERT INTO users (email, password_hash, full_name, role, lgu_id, team_id, must_change_password)
+    VALUES (${email}, ${hash}, ${name || `Test ${role} ${userCounter}`}, ${role}, ${lguId}, ${teamId}, ${mustChange})
+    RETURNING id, email, role, lgu_id, team_id`;
   return { ...u, password };
 }
 
