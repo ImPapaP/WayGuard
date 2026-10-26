@@ -60,8 +60,10 @@ test('admin report lists and private report details are isolated by LGU', async 
   assert.ok(lgu, 'LGU created by the platform test exists');
 
   const tenantAdminUser = await createUser({ role: 'admin', lguId: lgu.id, name: 'Tenant Admin' });
+  const tenantStaffUser = await createUser({ role: 'staff', lguId: lgu.id, name: 'Tenant Staff' });
   const tenantCitizenUser = await createUser({ role: 'citizen', lguId: lgu.id, name: 'Tenant Citizen' });
   const tenantAdmin = await login(server.base, tenantAdminUser);
+  const tenantStaff = await login(server.base, tenantStaffUser);
   const tenantCitizen = await login(server.base, tenantCitizenUser);
 
   const defaultReport = await submitReport(defaultCitizen, {
@@ -92,8 +94,8 @@ test('admin report lists and private report details are isolated by LGU', async 
   const crossTenantDetail = await tenantAdmin.get(`/api/reports/${defaultReport.data.report.id}`);
   assert.equal(crossTenantDetail.status, 404, 'a tenant administrator cannot read a report from another LGU');
 
-  const tenantUsers = await tenantAdmin.get('/api/admin/users');
-  assert.equal(tenantUsers.status, 403, 'regular staff/admin user management remains restricted to the LGU admin role');
+  const tenantStaffUsers = await tenantStaff.get('/api/admin/users');
+  assert.equal(tenantStaffUsers.status, 403, 'LGU staff cannot manage user accounts');
   const adminTenantUsers = await defaultAdmin.get('/api/admin/users');
   assert.equal(adminTenantUsers.status, 200);
   assert.ok(adminTenantUsers.data.items.every((user) => user.lgu_id === defaultAdmin.user?.lgu_id));
