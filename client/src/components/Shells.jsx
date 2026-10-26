@@ -28,6 +28,7 @@ import HeroBackdrop from './HeroBackdrop.jsx';
 import { api } from '../lib/api.js';
 import { useClickOutside, useOnline } from '../lib/hooks.js';
 import { initials, ROLES } from '../lib/format.js';
+import { Modal, Button } from './ui.jsx';
 
 // ---------------------------------------------------------------- unread count
 export function notifyNotificationsChanged() {
@@ -73,6 +74,7 @@ export function AccountMenu({ basePath }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const ref = useClickOutside(useCallback(() => setOpen(false), []));
   if (!user) return null;
   return (
@@ -105,15 +107,30 @@ export function AccountMenu({ basePath }) {
             type="button"
             className="menu__item"
             role="menuitem"
-            onClick={async () => {
+            onClick={() => {
               setOpen(false);
-              await logout();
-              navigate('/login');
+              setConfirmSignOut(true);
             }}
           >
             <LuLogOut aria-hidden /> Sign out
           </button>
         </div>
+      )}
+      {confirmSignOut && (
+        <Modal
+          title="Sign out of Wayguard?"
+          onClose={() => setConfirmSignOut(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmSignOut(false)}>Cancel</Button>
+              <Button variant="navy" onClick={async () => { setConfirmSignOut(false); await logout(); navigate('/login'); }}>
+                <LuLogOut aria-hidden /> Sign out
+              </Button>
+            </>
+          }
+        >
+          <p>Are you sure you want to sign out? You will need to sign in again to access your workspace.</p>
+        </Modal>
       )}
     </div>
   );
@@ -336,6 +353,7 @@ function AdminNav({ counts, unread, onNavigate }) {
 function Sidebar({ counts, unread, onNavigate }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   return (
     <div className="sidebar admin__sidebar-inner" style={{ display: 'flex' }}>
       <Link to="/admin" className="sidebar__logo" aria-label="Wayguard dashboard" onClick={onNavigate}>
@@ -356,18 +374,27 @@ function Sidebar({ counts, unread, onNavigate }) {
           <NavLink to="/admin/profile" onClick={onNavigate}>
             <LuUser aria-hidden /> Profile and password
           </NavLink>
-          <a
-            href="/login"
-            onClick={async (e) => {
-              e.preventDefault();
-              await logout();
-              navigate('/login');
-            }}
-          >
+          <button type="button" className="menu__item" onClick={() => setConfirmSignOut(true)}>
             <LuLogOut aria-hidden /> Sign out
-          </a>
+          </button>
         </nav>
       </div>
+      {confirmSignOut && (
+        <Modal
+          title="Sign out of Wayguard?"
+          onClose={() => setConfirmSignOut(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmSignOut(false)}>Cancel</Button>
+              <Button variant="navy" onClick={async () => { setConfirmSignOut(false); await logout(); navigate('/login'); }}>
+                <LuLogOut aria-hidden /> Sign out
+              </Button>
+            </>
+          }
+        >
+          <p>Are you sure you want to sign out? You will need to sign in again to access your workspace.</p>
+        </Modal>
+      )}
     </div>
   );
 }
