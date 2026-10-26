@@ -14,6 +14,8 @@ const EMPTY_FORM = {
   slug: '',
   city: '',
   province: '',
+  map_latitude: '',
+  map_longitude: '',
   admin_name: '',
   admin_email: '',
   admin_phone: '',
@@ -107,6 +109,11 @@ export default function LGUs() {
                 <TextField label="City / municipality" value={form.city} onChange={set('city')} error={fieldErrors.city} required />
                 <TextField label="Province" value={form.province} onChange={set('province')} error={fieldErrors.province} required />
               </div>
+              <div className="form-row form-row--2">
+                <TextField label="Map latitude (optional)" type="number" step="any" value={form.map_latitude} onChange={set('map_latitude')} error={fieldErrors.map_latitude} placeholder="e.g. 14.7678" />
+                <TextField label="Map longitude (optional)" type="number" step="any" value={form.map_longitude} onChange={set('map_longitude')} error={fieldErrors.map_longitude} placeholder="e.g. 120.9586" />
+              </div>
+              <p className="muted small">Enter both coordinates for this LGU's default map centre. You can also set the centre later in System settings.</p>
               <TextField label="Workspace slug" value={form.slug} onChange={set('slug')} error={fieldErrors.slug} placeholder="Optional, e.g. meycauayan" hint="Optional. Used as a stable identifier for this workspace." />
               <hr />
               <h3>First LGU administrator</h3>
