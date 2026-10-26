@@ -1,5 +1,6 @@
 // Small building blocks shared by every screen.
 import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LuCircleAlert,
   LuInfo,
@@ -250,7 +251,7 @@ export function Modal({ title, onClose, children, footer, labelledBy }) {
       previous?.focus?.();
     };
   }, [onClose]);
-  return (
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby={labelledBy || titleId} ref={ref} tabIndex={-1}>
         <div className="modal__head">
@@ -262,7 +263,8 @@ export function Modal({ title, onClose, children, footer, labelledBy }) {
         <div className="modal__body">{children}</div>
         {footer && <div className="modal__foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
