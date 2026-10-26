@@ -279,6 +279,14 @@ platformRoutes.post('/lgus', platformAdmin, async (ctx) => {
       VALUES (${body.admin_email}, ${passwordHash}, ${body.admin_name}, ${body.admin_phone || null}, 'admin', ${lgu.id}, TRUE)
       RETURNING id, email, full_name, role, lgu_id`;
 
+    await tx`
+      INSERT INTO admin_jurisdiction_assignments (user_id, lgu_id, assigned_by)
+      VALUES (${admin.id}, ${lgu.id}, ${ctx.user.id})
+      ON CONFLICT (user_id, lgu_id) DO NOTHING`;
+    await tx`
+      INSERT INTO admin_jurisdiction_assignment_history (user_id, lgu_id, action, changed_by, details)
+      VALUES (${admin.id}, ${lgu.id}, 'assigned', ${ctx.user.id}, ${tx.json({ source: 'lgu_provisioning' })})`;
+
     await audit(tx, {
       actorId: ctx.user.id,
       action: 'lgu.create',
